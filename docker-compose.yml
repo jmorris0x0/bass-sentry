@@ -1,0 +1,56 @@
+version: '3.7'
+
+x-environment: &global-environment
+  INFLUXDB_ADMIN_USER: admin
+  INFLUXDB_ADMIN_PASSWORD: supersecret
+
+services:
+  main:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - influxdb
+    environment:
+      <<: *global-environment
+
+  influxdb:
+    image: influxdb:latest
+    volumes:
+      - influxdb-data:/var/lib/influxdb
+    environment:
+      <<: *global-environment
+      INFLUXDB_DB: mydb
+      INFLUXDB_USER: admin
+      INFLUXDB_ADMIN_ENABLED: "true"
+    ports:
+      - "8086:8086"
+
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    ports:
+      - "1883:1883"
+    volumes:
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana-provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana-provisioning/dashboards:/etc/grafana/provisioning/dashboards
+    depends_on:
+      - influxdb
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: grafanapass  # Change 'grafanapass' to your preferred password
+      GF_SECURITY_ADMIN_USER: admin
+
+volumes:
+  influxdb-data:
+  grafana-data:
+  mosquitto-data:
+  mosquitto-log:
