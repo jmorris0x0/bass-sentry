@@ -1,0 +1,8 @@
+brew install portaudio
+pip install pyaudio
+pip install scipy
+
+
+
+
+

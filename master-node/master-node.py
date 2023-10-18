@@ -94,11 +94,11 @@ def handle_health_check(payload):
 
 
 def json_to_point(json_data):
-    point = Point("sound_pressure")
+    point = Point("dBFS")
     point.tag("station_id", json_data["station_id"])
     point.time(json_data["timestamp"], WritePrecision.NS)
-    point.field("frequency_1", json_data["frequency_1"])
-    point.field("frequency_2", json_data["frequency_2"])
+    point.field("15-100Hz", json_data["15-100Hz"])
+    #point.field("frequency_2", json_data["frequency_2"])
     
     return point
 
