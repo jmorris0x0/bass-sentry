@@ -146,7 +146,7 @@ def main():
 
     threading.Thread(target=check_unhealthy_nodes, daemon=True).start()
 
-    logger.info("Master node started successfully!")
+    logger.info("Master node started successfully.")
     logger.info("Press Ctrl+C to exit...")
 
     try:

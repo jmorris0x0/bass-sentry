@@ -1,37 +1,15 @@
-# Needs:
-# pip install paho-mqtt zeroconf
-
-# Needs:
-# pip install paho-mqtt zeroconf
-
-import paho.mqtt.client as mqtt
-from zeroconf import ServiceBrowser, Zeroconf
+import json
 import logging
 import time
-import random
 import uuid
-import json 
-import signal
-import sys
+import paho.mqtt.client as mqtt
+from zeroconf import ServiceBrowser, Zeroconf
 
-
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-def signal_handler(sig, frame):
-    logger.info("Exiting remote node...")
-    sys.exit(0)
-
-signal.signal(signal.SIGINT, signal_handler)
-signal.signal(signal.SIGTERM, signal_handler)
-
-
 SERVICE_TYPE = "_mymasterservice._tcp.local."
-
 
 def get_mac_address():
     return ':'.join(['{:02x}'.format((uuid.getnode() >> elements) & 0xff) for elements in range(0, 2 * 6, 2)][::-1])
-
 
 class ServiceDiscoveryListener:
     def __init__(self):
@@ -51,7 +29,7 @@ class ServiceDiscoveryListener:
         pass
 
 
-def discover_service(max_attempts=10):
+def discover_service(max_attempts=10000000):
     zeroconf = Zeroconf()
     listener = ServiceDiscoveryListener()
     browser = ServiceBrowser(zeroconf, SERVICE_TYPE, listener)
@@ -65,7 +43,6 @@ def discover_service(max_attempts=10):
         return listener.broker_address
     else:
         raise Exception("Service discovery failed after maximum attempts.")
-
 
 class MQTTHandler:
     def __init__(self, broker_address, topic, unit_name):
@@ -111,37 +88,27 @@ class MQTTHandler:
         self.client.publish(self.topic, message)
 
 
-def main():
-    UNIT_NAME = get_mac_address()
-    MQTT_TOPIC = f"remote_node/{UNIT_NAME}"
-    
-    try:
-        broker_address = discover_service()
-        print(f"Found master node at {broker_address}", flush=True)
-    except Exception as e:
-        print(str(e), flush=True)
-        return
+class TelemetrySender:
+    def __init__(self, topic_suffix=None):
+        self.unit_name = get_mac_address()
+        if topic_suffix:
+            self.topic = f"{topic_suffix}/{self.unit_name}"
+        else:
+            self.topic = self.unit_name
+        
+        try:
+            self.broker_address = discover_service()
+            logger.info(f"Found master node at {self.broker_address}")
+        except Exception as e:
+            logger.error(str(e))
+            raise
 
-    handler = MQTTHandler(broker_address, MQTT_TOPIC, UNIT_NAME)
-    handler.start()
+        self.handler = MQTTHandler(self.broker_address, self.topic, self.unit_name)
+        self.handler.start()
 
-    try:
-        while True:
-            json_data = {
-                "station_id": UNIT_NAME,
-                "timestamp": time.time_ns(),
-                "frequency_1": 1, # Sample data 1
-                "frequency_2": 2 # Sample data 2
-            }
+    def send_data(self, data):
+        logger.info(f"Sending data: {data}")
+        self.handler.send_data(data)
 
-            logger.info(f"Sending data: {json_data}")
-            handler.send_data(json_data)
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("Stopping data transmission.", flush=True)
-    finally:
-        handler.stop()
-
-
-if __name__ == "__main__":
-    main()
+    def stop(self):
+        self.handler.stop()
