@@ -1,13 +1,16 @@
 version: '3.7'
 
 x-environment: &global-environment
-  INFLUXDB_ADMIN_USER: admin
-  INFLUXDB_ADMIN_PASSWORD: supersecret
+  DOCKER_INFLUXDB_INIT_USERNAME: admin
+  DOCKER_INFLUXDB_INIT_PASSWORD: supersecret
+  DOCKER_INFLUXDB_INIT_ORG: myorg
+  DOCKER_INFLUXDB_INIT_BUCKET: mybucket
+  DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: 83A24B9B-BBF6-4A19-B9F5-5806D4BA8FBD
 
 services:
-  main:
+  master-node:
     build:
-      context: .
+      context: ./master-node
       dockerfile: Dockerfile
     depends_on:
       - influxdb
@@ -20,9 +23,8 @@ services:
       - influxdb-data:/var/lib/influxdb
     environment:
       <<: *global-environment
-      INFLUXDB_DB: mydb
-      INFLUXDB_USER: admin
-      INFLUXDB_ADMIN_ENABLED: "true"
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      TZ: Etc/UTC
     ports:
       - "8086:8086"
 

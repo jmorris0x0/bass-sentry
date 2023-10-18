@@ -1,3 +1,4 @@
 paho-mqtt==1.5.1
-influxdb==5.3.1
+pandas
+influxdb3-python
 zeroconf==0.33.4

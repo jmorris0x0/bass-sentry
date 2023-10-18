@@ -1,13 +1,20 @@
-# grafana-provisioning/datasources/datasources.yaml
 apiVersion: 1
 
 datasources:
   - name: InfluxDB
     type: influxdb
     access: proxy
-    database: mydb  # This should match the DB name you set in docker-compose
-    user: admin
-    password: supersecret  # This should match the password you set in docker-compose
     url: http://influxdb:8086
     isDefault: true
-
+    editable: true
+    jsonData:
+      dbName: mybucket
+      defaultBucket: mybucket
+      httpMode: POST
+      oauthPassThru: false
+      organization: myorg
+      tlsAuth: false
+      tlsSkipVerify: false
+      version: Flux
+    secureJsonData:
+      token: 83A24B9B-BBF6-4A19-B9F5-5806D4BA8FBD 
