@@ -6,10 +6,25 @@
 
 import paho.mqtt.client as mqtt
 from zeroconf import ServiceBrowser, Zeroconf
+import logging
 import time
 import random
 import uuid
 import json 
+import signal
+import sys
+
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def signal_handler(sig, frame):
+    logger.info("Exiting remote node...")
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+
 
 SERVICE_TYPE = "_mymasterservice._tcp.local."
 
@@ -42,7 +57,7 @@ def discover_service(max_attempts=10):
     browser = ServiceBrowser(zeroconf, SERVICE_TYPE, listener)
     attempts = 0
     while not listener.broker_address and attempts < max_attempts:
-        print("Attempting to discover master node...", flush=True)
+        logger.info("Attempting to discover master node...")
         time.sleep(5)
         attempts += 1
     zeroconf.close()
@@ -66,7 +81,7 @@ class MQTTHandler:
 
 
     def on_connect(self, client, userdata, flags, rc):
-        print(f"Connected to MQTT broker with result code {rc}", flush=True)
+        logger.info(f"Connected to MQTT broker with result code {rc}")
     
         # Creating the heartbeat payload as a JSON string
         payload = json.dumps({
@@ -78,7 +93,7 @@ class MQTTHandler:
 
 
     def on_disconnect(self, client, userdata, rc):
-        print(f"Disconnected with result code {rc}. Reconnecting in {self.reconnect_delay} seconds.", flush=True)
+        logger.info(f"Disconnected with result code {rc}. Reconnecting in {self.reconnect_delay} seconds.")
         time.sleep(self.reconnect_delay)
         self.reconnect_delay = min(self.reconnect_delay * 2, 60)
         client.reconnect()
@@ -91,8 +106,8 @@ class MQTTHandler:
         self.client.loop_stop()
         self.client.disconnect()
 
-    def send_data(self, timestamp, data):
-        message = json.dumps({'timestamp': timestamp, 'data': data})
+    def send_data(self, data):
+        message = json.dumps(data)
         self.client.publish(self.topic, message)
 
 
@@ -112,10 +127,15 @@ def main():
 
     try:
         while True:
-            random_data = random.random()
-            timestamp = time.time()  # Generate a UNIX timestamp
-            print(f"Sending data: {random_data} at timestamp: {timestamp}", flush=True)
-            handler.send_data(timestamp, random_data)
+            json_data = {
+                "station_id": UNIT_NAME,
+                "timestamp": time.time_ns(),
+                "frequency_1": 1, # Sample data 1
+                "frequency_2": 2 # Sample data 2
+            }
+
+            logger.info(f"Sending data: {json_data}")
+            handler.send_data(json_data)
             time.sleep(1)
     except KeyboardInterrupt:
         print("Stopping data transmission.", flush=True)

@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import random
 import signal
 import sys
 import threading
@@ -26,7 +27,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 
 healthy_nodes = set()
 last_health_check = {}
-lock = threading.Lock()  # Lock for thread safety
+lock = threading.Lock()
 
 
 def connect_to_influx():
@@ -92,22 +93,20 @@ def handle_health_check(payload):
         last_health_check[node_name] = time.time()
 
 
+def json_to_point(json_data):
+    point = Point("sound_pressure")
+    point.tag("station_id", json_data["station_id"])
+    point.time(json_data["timestamp"], WritePrecision.NS)
+    point.field("frequency_1", json_data["frequency_1"])
+    point.field("frequency_2", json_data["frequency_2"])
+    
+    return point
+
+
 def handle_data_point(client, topic, payload):
-    data = [
-        {
-            "measurement": topic,
-            "fields": {
-                "value": payload
-            }
-        }
-    ]
     write_api = client.write_api(write_options=SYNCHRONOUS)
 
-    point = (
-      Point("measurement1")
-      .tag("tagname1", "tagvalue1")
-      .field("field1", 1)
-     )
+    point = (json_to_point(payload))
     
     try:
         write_api.write(bucket="mybucket", org="myorg", record=point)
