@@ -42,7 +42,7 @@ def discover_service(max_attempts=10):
     browser = ServiceBrowser(zeroconf, SERVICE_TYPE, listener)
     attempts = 0
     while not listener.broker_address and attempts < max_attempts:
-        print("Attempting to discover master node...")
+        print("Attempting to discover master node...", flush=True)
         time.sleep(5)
         attempts += 1
     zeroconf.close()
@@ -64,12 +64,21 @@ class MQTTHandler:
         self.client.on_connect = self.on_connect
         self.client.on_disconnect = self.on_disconnect
 
+
     def on_connect(self, client, userdata, flags, rc):
-        print(f"Connected to MQTT broker with result code {rc}")
-        client.publish(self.topic, f"{self.unit_name} connected")
+        print(f"Connected to MQTT broker with result code {rc}", flush=True)
+    
+        # Creating the heartbeat payload as a JSON string
+        payload = json.dumps({
+            "node": self.unit_name,
+            "status": "connected"
+        })
+
+        client.publish(self.topic, payload)
+
 
     def on_disconnect(self, client, userdata, rc):
-        print(f"Disconnected with result code {rc}. Reconnecting in {self.reconnect_delay} seconds.")
+        print(f"Disconnected with result code {rc}. Reconnecting in {self.reconnect_delay} seconds.", flush=True)
         time.sleep(self.reconnect_delay)
         self.reconnect_delay = min(self.reconnect_delay * 2, 60)
         client.reconnect()
@@ -93,9 +102,9 @@ def main():
     
     try:
         broker_address = discover_service()
-        print(f"Found master node at {broker_address}")
+        print(f"Found master node at {broker_address}", flush=True)
     except Exception as e:
-        print(str(e))
+        print(str(e), flush=True)
         return
 
     handler = MQTTHandler(broker_address, MQTT_TOPIC, UNIT_NAME)
@@ -105,11 +114,11 @@ def main():
         while True:
             random_data = random.random()
             timestamp = time.time()  # Generate a UNIX timestamp
-            print(f"Sending data: {random_data} at timestamp: {timestamp}")
+            print(f"Sending data: {random_data} at timestamp: {timestamp}", flush=True)
             handler.send_data(timestamp, random_data)
             time.sleep(1)
     except KeyboardInterrupt:
-        print("Stopping data transmission.")
+        print("Stopping data transmission.", flush=True)
     finally:
         handler.stop()
 
