@@ -21,8 +21,9 @@ default_device_info = sd.query_devices(kind="input")
 RATE = int(default_device_info["default_samplerate"])
 FORMAT = np.int16  # 16 bit audio
 CHANNELS = 1
-SENDING_RATE = 
+SENDING_RATE = 2  # Hz
 CHUNK = int(RATE / SENDING_RATE)
+DBFS_TO_DBSPL_CONVERSION_FACTOR = 94
 
 
 def signal_handler(sig, frame):

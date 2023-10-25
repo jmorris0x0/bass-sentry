@@ -83,7 +83,23 @@ class MQTTHandler:
         client.reconnect()
 
     def start(self):
-        self.client.connect(self.broker_address, 1883, 60)
+        retry_interval = 0.25  # Initial retry interval in seconds
+        max_retry_interval = 10  # Maximum retry interval in seconds
+
+        while True:
+            try:
+                self.client.connect(self.broker_address, 1883, 60)
+                break  # Exit the loop if the connection is successful
+            except OSError as e:
+                if e.errno == 65:
+                    logger.warning(
+                        f"Failed to connect to the broker. Retrying in {retry_interval} s..."
+                    )
+                    time.sleep(retry_interval)
+                    retry_interval = min(retry_interval * 2, max_retry_interval)
+                else:
+                    raise  # Reraise the exception if it is not "No route to host"
+
         self.client.loop_start()
 
     def stop(self):

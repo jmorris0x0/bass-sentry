@@ -18,15 +18,6 @@ from influxdb_client.client.write_api import SYNCHRONOUS
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-# This doesn't work with docker-compose
-#def signal_handler(sig, frame):
-#    logger.info("Exiting master node...")
-#    sys.exit(0)
-
-#signal.signal(signal.SIGINT, signal_handler)
-#signal.signal(signal.SIGTERM, signal_handler)
-
 healthy_nodes = set()
 last_health_check = {}
 lock = threading.Lock()
@@ -41,10 +32,8 @@ def connect_to_influx():
 
     try:
         client = influxdb_client.InfluxDBClient(
-                url=url,
-                token=token,
-                database=bucket,
-                org=org)
+            url=url, token=token, database=bucket, org=org
+        )
 
         logger.info("Successfully connected to InfluxDB!")
         logger.info(f"Token: {token}")
@@ -64,8 +53,8 @@ def on_message(client, mqtt_client, userdata, msg):
     topic = msg.topic
 
     try:
-        payload = json.loads(msg.payload.decode('utf-8'))
-        
+        payload = json.loads(msg.payload.decode("utf-8"))
+
         # If payload contains a 'status' key, it's a connection status message
         if "status" in payload:
             handle_connection_status(payload)
@@ -74,7 +63,10 @@ def on_message(client, mqtt_client, userdata, msg):
         else:
             handle_data_point(client, topic, payload)
     except json.JSONDecodeError:
-        logger.error(f"Failed to decode JSON from payload: {msg.payload.decode('utf-8')}")
+        logger.error(
+            f"Failed to decode JSON from payload: {msg.payload.decode('utf-8')}"
+        )
+
 
 def handle_connection_status(payload):
     node = payload.get("node", "")
@@ -100,21 +92,23 @@ def json_to_point(json_data):
     point.tag("station_id", json_data["station_id"])
     point.time(json_data["timestamp"], WritePrecision.NS)
     point.field("15-100Hz", json_data["15-100Hz"])
-    #point.field("frequency_2", json_data["frequency_2"])
-    
+    # point.field("frequency_2", json_data["frequency_2"])
+
     return point
 
 
 def handle_data_point(client, topic, payload):
     write_api = client.write_api(write_options=SYNCHRONOUS)
 
-    point = (json_to_point(payload))
-    
+    point = json_to_point(payload)
+
     try:
         write_api.write(bucket="mybucket", org="myorg", record=point)
         logger.debug(f"Sent to InfluxDB for topic '{topic}' with payload '{payload}'")
-    except Exception as e:  
-        logger.error(f"Failed to write data to InfluxDB for topic '{topic}' with payload '{payload}'. Error: {str(e)}")
+    except Exception as e:
+        logger.error(
+            f"Failed to write data to InfluxDB for topic '{topic}' with payload '{payload}'. Error: {str(e)}"
+        )
 
 
 def check_unhealthy_nodes():
@@ -131,7 +125,7 @@ def check_unhealthy_nodes():
 
 def main():
     logger.info("Starting master node...")
-    client = connect_to_influx()  
+    client = connect_to_influx()
     if not client:
         logger.error("Could not connect to InfluxDB. Exiting...")
         sys.exit(1)
@@ -139,7 +133,7 @@ def main():
     mqtt_client = mqtt.Client()
     mqtt_client.on_connect = on_connect
     mqtt_client.on_message = lambda mc, ud, message: on_message(client, mc, ud, message)
-    
+
     logger.info("Connecting to MQTT broker...")
     mqtt_client.connect("mosquitto", 1883, 60)
 
