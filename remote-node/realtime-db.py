@@ -12,7 +12,7 @@ import ntplib
 import sounddevice as sd
 from telemetry_sender import TelemetrySender
 
-#logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
 logging.basicConfig(level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
@@ -59,15 +59,28 @@ def get_ntp_offset(ntp_server="pool.ntp.org"):
         return 0  # return a default value or handle the error as appropriate
 
 
-def callback(indata, frames, time, status, data_queue, initial_time, ns_between_messages, sample_counter):
+def callback(
+    indata,
+    frames,
+    time,
+    status,
+    data_queue,
+    initial_time,
+    ns_between_messages,
+    sample_counter,
+):
     if status:
         if status & sd.CallbackFlags.input_overflow:
-            logger.error('Input overflow - buffer may be too small or system too slow, data may be lost!')
+            logger.error(
+                "Input overflow - buffer may be too small or system too slow, data may be lost!"
+            )
         else:
             logger.warning(status)
-    
+
     timestamp = initial_time + sample_counter.value * ns_between_messages
-    logger.debug(f"ns_between_messages: {ns_between_messages}, sample_counter: {sample_counter.value}, timestamp: {timestamp}")
+    logger.debug(
+        f"ns_between_messages: {ns_between_messages}, sample_counter: {sample_counter.value}, timestamp: {timestamp}"
+    )
     data_queue.put((indata.copy(), timestamp))
     sample_counter.value += 1
 
@@ -76,15 +89,28 @@ def recorder(data_queue, sample_counter):
     ntp_offset = get_ntp_offset()
     initial_time = int((time.time_ns() + ntp_offset * 1e9))
     ns_between_messages = int(1e9 / SENDING_RATE)
-    callback_with_queue = partial(callback, data_queue=data_queue, initial_time=initial_time, ns_between_messages=ns_between_messages, sample_counter=sample_counter)
+    callback_with_queue = partial(
+        callback,
+        data_queue=data_queue,
+        initial_time=initial_time,
+        ns_between_messages=ns_between_messages,
+        sample_counter=sample_counter,
+    )
 
-    stream = sd.InputStream(callback=callback_with_queue, channels=CHANNELS, dtype=FORMAT, samplerate=RATE, blocksize=CHUNK, finished_callback=lambda: print("Stream finished"))
+    stream = sd.InputStream(
+        callback=callback_with_queue,
+        channels=CHANNELS,
+        dtype=FORMAT,
+        samplerate=RATE,
+        blocksize=CHUNK,
+        finished_callback=lambda: print("Stream finished"),
+    )
     try:
         with stream:
             while True:
                 time.sleep(0.1)  # Keep the main thread alive
     except KeyboardInterrupt:
-        logger.info('Recording stopped by user')
+        logger.info("Recording stopped by user")
         return
 
 
@@ -101,10 +127,14 @@ def sender(data_queue):
                 continue
 
             if prev_timestamp is not None:  # If this is not the first timestamp
-                diff = timestamp - prev_timestamp  # Calculate the difference with the previous timestamp
+                diff = (
+                    timestamp - prev_timestamp
+                )  # Calculate the difference with the previous timestamp
                 logger.debug(f"Timestamp difference: {diff} ns")  # Log the difference
 
-            prev_timestamp = timestamp  # Update the previous timestamp for the next iteration
+            prev_timestamp = (
+                timestamp  # Update the previous timestamp for the next iteration
+            )
 
             np_data = np.frombuffer(data, dtype=np.int16).astype(float)
             rms_val = rms(np_data)
@@ -130,9 +160,11 @@ if __name__ == "__main__":
     logger.info(f"RATE: {RATE}, SENDING_RATE: {SENDING_RATE}, CHUNK: {CHUNK}")
 
     data_queue = multiprocessing.Queue()
-    sample_counter = multiprocessing.Value('i', 0)  # 'i' indicates a signed int
+    sample_counter = multiprocessing.Value("i", 0)  # 'i' indicates a signed int
 
-    recorder_process = multiprocessing.Process(target=recorder, args=(data_queue, sample_counter))
+    recorder_process = multiprocessing.Process(
+        target=recorder, args=(data_queue, sample_counter)
+    )
     sender_process = multiprocessing.Process(target=sender, args=(data_queue,))
 
     try:
