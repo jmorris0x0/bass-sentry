@@ -12,7 +12,9 @@ import ntplib
 import sounddevice as sd
 from telemetry_sender import TelemetrySender
 
-logging.basicConfig(level=logging.INFO)
+#logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
+
 logger = logging.getLogger(__name__)
 
 default_device_info = sd.query_devices(kind="input")
@@ -57,14 +59,15 @@ def get_ntp_offset(ntp_server="pool.ntp.org"):
         return 0  # return a default value or handle the error as appropriate
 
 
-def callback(indata, frames, time, status, data_queue, initial_time, ns_per_frame, sample_counter):
+def callback(indata, frames, time, status, data_queue, initial_time, ns_between_messages, sample_counter):
     if status:
         if status & sd.CallbackFlags.input_overflow:
             logger.error('Input overflow - buffer may be too small or system too slow, data may be lost!')
         else:
             logger.warning(status)
     
-    timestamp = initial_time + sample_counter.value * ns_per_frame
+    timestamp = initial_time + sample_counter.value * ns_between_messages
+    logger.debug(f"ns_between_messages: {ns_between_messages}, sample_counter: {sample_counter.value}, timestamp: {timestamp}")
     data_queue.put((indata.copy(), timestamp))
     sample_counter.value += 1
 
@@ -72,8 +75,8 @@ def callback(indata, frames, time, status, data_queue, initial_time, ns_per_fram
 def recorder(data_queue, sample_counter):
     ntp_offset = get_ntp_offset()
     initial_time = int((time.time_ns() + ntp_offset * 1e9))
-    ns_per_frame = int(1e9 / RATE)
-    callback_with_queue = partial(callback, data_queue=data_queue, initial_time=initial_time, ns_per_frame=ns_per_frame, sample_counter=sample_counter)
+    ns_between_messages = int(1e9 / SENDING_RATE)
+    callback_with_queue = partial(callback, data_queue=data_queue, initial_time=initial_time, ns_between_messages=ns_between_messages, sample_counter=sample_counter)
 
     stream = sd.InputStream(callback=callback_with_queue, channels=CHANNELS, dtype=FORMAT, samplerate=RATE, blocksize=CHUNK, finished_callback=lambda: print("Stream finished"))
     try:
@@ -87,6 +90,7 @@ def recorder(data_queue, sample_counter):
 
 def sender(data_queue):
     telemetry = TelemetrySender(topic_suffix="remote_node")
+    prev_timestamp = None  # Initialize a variable to store the previous timestamp
     try:
         while True:
             try:
@@ -95,6 +99,12 @@ def sender(data_queue):
                 )  # Timeout to handle empty queue
             except multiprocessing.queues.Empty:
                 continue
+
+            if prev_timestamp is not None:  # If this is not the first timestamp
+                diff = timestamp - prev_timestamp  # Calculate the difference with the previous timestamp
+                logger.debug(f"Timestamp difference: {diff} ns")  # Log the difference
+
+            prev_timestamp = timestamp  # Update the previous timestamp for the next iteration
 
             np_data = np.frombuffer(data, dtype=np.int16).astype(float)
             rms_val = rms(np_data)
@@ -116,6 +126,8 @@ def sender(data_queue):
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
+
+    logger.info(f"RATE: {RATE}, SENDING_RATE: {SENDING_RATE}, CHUNK: {CHUNK}")
 
     data_queue = multiprocessing.Queue()
     sample_counter = multiprocessing.Value('i', 0)  # 'i' indicates a signed int
