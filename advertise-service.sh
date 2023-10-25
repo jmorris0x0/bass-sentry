@@ -8,7 +8,7 @@ get_mac_address() {
 }
 
 # Service details
-SERVICE_TYPE="_mymasterservice._tcp."
+SERVICE_TYPE="_telemetryservice._tcp."
 SERVICE_PORT="1883"
 UNIT_NAME=$(get_mac_address)
 SERVICE_NAME="$UNIT_NAME"

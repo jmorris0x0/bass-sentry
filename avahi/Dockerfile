@@ -8,7 +8,7 @@ RUN apk --no-cache --no-progress add avahi avahi-tools
 # remove default services
 RUN rm /etc/avahi/services/*
 
-COPY mymasterservice.service /etc/avahi/services/
+COPY telemetryservice.service /etc/avahi/services/
 
 # disable d-bus
 RUN sed -i 's/.*enable-dbus=.*/enable-dbus=no/' /etc/avahi/avahi-daemon.conf

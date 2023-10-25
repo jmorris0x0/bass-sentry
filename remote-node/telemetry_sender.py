@@ -6,7 +6,7 @@ import paho.mqtt.client as mqtt
 from zeroconf import ServiceBrowser, Zeroconf
 
 logger = logging.getLogger(__name__)
-SERVICE_TYPE = "_mymasterservice._tcp.local."
+SERVICE_TYPE = "_telemetryservice._tcp.local."
 
 # TODO: Add QOS for both remote and master
 
