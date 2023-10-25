@@ -5,3 +5,13 @@ This range includes the lowest frequencies that humans can perceive. Sounds in t
 Bass: 60 Hz - 250 Hz
 
 This range covers the fundamental frequencies of many musical instruments and encompasses much of the "boominess" people associate with bass.
+
+
+from(bucket: "mybucket")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["_measurement"] == "dBFS")
+  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)
+  |> yield(name: "mean")
+
+
+

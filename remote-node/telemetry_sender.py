@@ -10,8 +10,15 @@ SERVICE_TYPE = "_mymasterservice._tcp.local."
 
 # TODO: Add QOS for both remote and master
 
+
 def get_mac_address():
-    return ':'.join(['{:02x}'.format((uuid.getnode() >> elements) & 0xff) for elements in range(0, 2 * 6, 2)][::-1])
+    return ":".join(
+        [
+            "{:02x}".format((uuid.getnode() >> elements) & 0xFF)
+            for elements in range(0, 2 * 6, 2)
+        ][::-1]
+    )
+
 
 class ServiceDiscoveryListener:
     def __init__(self):
@@ -46,6 +53,7 @@ def discover_service(max_attempts=10000000):
     else:
         raise Exception("Service discovery failed after maximum attempts.")
 
+
 class MQTTHandler:
     def __init__(self, broker_address, topic, unit_name):
         self.broker_address = broker_address
@@ -58,21 +66,18 @@ class MQTTHandler:
         self.client.on_connect = self.on_connect
         self.client.on_disconnect = self.on_disconnect
 
-
     def on_connect(self, client, userdata, flags, rc):
         logger.info(f"Connected to MQTT broker with result code {rc}")
-    
+
         # Creating the heartbeat payload as a JSON string
-        payload = json.dumps({
-            "node": self.unit_name,
-            "status": "connected"
-        })
+        payload = json.dumps({"node": self.unit_name, "status": "connected"})
 
         client.publish(self.topic, payload)
 
-
     def on_disconnect(self, client, userdata, rc):
-        logger.info(f"Disconnected with result code {rc}. Reconnecting in {self.reconnect_delay} seconds.")
+        logger.info(
+            f"Disconnected with result code {rc}. Reconnecting in {self.reconnect_delay} seconds."
+        )
         time.sleep(self.reconnect_delay)
         self.reconnect_delay = min(self.reconnect_delay * 2, 60)
         client.reconnect()
@@ -97,7 +102,7 @@ class TelemetrySender:
             self.topic = f"{topic_suffix}/{self.unit_name}"
         else:
             self.topic = self.unit_name
-        
+
         try:
             self.broker_address = discover_service()
             logger.info(f"Found master node at {self.broker_address}")
