@@ -18,12 +18,14 @@ from influxdb_client.client.write_api import SYNCHRONOUS
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def signal_handler(sig, frame):
-    logger.info("Exiting master node...")
-    sys.exit(0)
 
-signal.signal(signal.SIGINT, signal_handler)
-signal.signal(signal.SIGTERM, signal_handler)
+# This doesn't work with docker-compose
+#def signal_handler(sig, frame):
+#    logger.info("Exiting master node...")
+#    sys.exit(0)
+
+#signal.signal(signal.SIGINT, signal_handler)
+#signal.signal(signal.SIGTERM, signal_handler)
 
 healthy_nodes = set()
 last_health_check = {}
@@ -110,7 +112,7 @@ def handle_data_point(client, topic, payload):
     
     try:
         write_api.write(bucket="mybucket", org="myorg", record=point)
-
+        logger.debug(f"Sent to InfluxDB for topic '{topic}' with payload '{payload}'")
     except Exception as e:  
         logger.error(f"Failed to write data to InfluxDB for topic '{topic}' with payload '{payload}'. Error: {str(e)}")
 
