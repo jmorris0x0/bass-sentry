@@ -13,7 +13,7 @@ import sounddevice as sd
 from telemetry_sender import TelemetrySender
 
 # logging.basicConfig(level=logging.INFO)
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ default_device_info = sd.query_devices(kind="input")
 RATE = int(default_device_info["default_samplerate"])
 FORMAT = np.int16  # 16 bit audio
 CHANNELS = 1
-SENDING_RATE = 2
+SENDING_RATE = 
 CHUNK = int(RATE / SENDING_RATE)
 
 
