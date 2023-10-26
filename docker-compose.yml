@@ -51,6 +51,13 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: grafanapass  # Change 'grafanapass' to your preferred password
       GF_SECURITY_ADMIN_USER: admin
 
+  ntp:
+    image: cturra/ntp
+    container_name: ntp
+    restart: always
+    ports:
+      - "123:123/udp"
+
 volumes:
   influxdb-data:
   grafana-data:

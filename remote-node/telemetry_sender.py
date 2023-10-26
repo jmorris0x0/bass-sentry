@@ -70,7 +70,7 @@ class MQTTHandler:
         logger.info(f"Connected to MQTT broker with result code {rc}")
 
         # Creating the heartbeat payload as a JSON string
-        payload = json.dumps({"node": self.unit_name, "status": "connected"})
+        payload = json.dumps({"node_name": self.unit_name, "status": "connected"})
 
         client.publish(self.topic, payload)
 
