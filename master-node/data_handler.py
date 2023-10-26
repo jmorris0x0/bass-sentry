@@ -1,6 +1,7 @@
 import logging
 import jsonschema
-from typing import Dict, Any
+from typing import Dict, Any, List
+import numpy as np
 from influxdb_client import Point, WritePrecision
 
 logger = logging.getLogger(__name__)
