@@ -90,16 +90,10 @@ class dbFS(DataProcessor):
     schema = {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
-        "required": [
-            "station_id",
-            "chunk",
-            "bands",
-            "fs",
-            "timestamp",
-            "time_precision",
-        ],
+        "required": ["station_id", "chunk", "fs"],
         "properties": {
             "station_id": {"type": "string"},
+            "data_type": {"type": "string"},
             "timestamp": {"type": "integer"},
             "time_precision": {
                 "type": "string",
@@ -126,7 +120,7 @@ class dbFS(DataProcessor):
         },
     }
 
-    def validate(self, data):
+    def validate(self, data: Dict[str, Any]) -> bool:
         try:
             jsonschema.validate(instance=data, schema=self.schema)
         except jsonschema.exceptions.ValidationError as e:
@@ -134,42 +128,31 @@ class dbFS(DataProcessor):
             return False
         return True
 
-    def bandpass_filter_fft(self, data, lowcut, highcut, fs):
-        T = 1.0 / fs
-        frequencies = np.fft.fftfreq(len(data), T)
-        fft_values = np.fft.fft(data)
-
-        filtered_fft_values = np.copy(fft_values)
-        filtered_fft_values[(frequencies < lowcut) | (frequencies > highcut)] = 0
-
-        filtered_data = np.fft.ifft(filtered_fft_values)
-
-        return filtered_data.real
-
-    def process(self, json_data):
+    def process(self, json_data: Dict[str, Any]) -> Point:
         if not self.validate(json_data):
             return None
+
+        chunk = np.array(json_data["chunk"])
+        fs = json_data["fs"]
+        bands = json_data.get("bands", {"NoFilter": [0, fs / 2]})
 
         point = Point("dBFS")
         point.tag("station_id", json_data["station_id"])
 
-        timestamp = json_data["timestamp"]
-        time_precision = json_data["time_precision"]
-        point.time(timestamp, time_precision)
+        timestamp = json_data.get("timestamp")
+        if timestamp is not None:
+            time_precision = json_data.get("time_precision", WritePrecision.NS)
+            point.time(timestamp, time_precision)
 
         tags = json_data.get("tags", {})
         for key, value in tags.items():
             point.tag(key, value)
 
-        data = json_data["chunk"]
-        bands = json_data["bands"]
-        fs = json_data["fs"]
-
         for band_name, (lowcut, highcut) in bands.items():
-            filtered_data = self.bandpass_filter_fft(data, lowcut, highcut, fs)
-            rms_value = np.sqrt(np.mean(np.square(filtered_data)))
-            dbfs_value = 20 * np.log10(rms_value / np.max(np.abs(data)))
-            point.field(band_name, dbfs_value)
+            filtered_chunk = bandpass_filter_fft(chunk, lowcut, highcut, fs)
+            rms_value = np.sqrt(np.mean(filtered_chunk**2))
+            dbfs_value = 20 * np.log10(rms_value / np.max(np.abs(chunk)))
+            point.field(f"{band_name}_dbFS", dbfs_value)
 
         return point
 
