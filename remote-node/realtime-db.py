@@ -13,7 +13,7 @@ import sounddevice as sd
 from telemetry_sender import TelemetrySender
 
 logging.basicConfig(level=logging.INFO)
-#logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 

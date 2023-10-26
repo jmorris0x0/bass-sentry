@@ -64,7 +64,7 @@ class MQTTHandler:
         self.unit_name = unit_name
         self.client = mqtt.Client()
         self.reconnect_delay = 1
-        self.heartbeat_interval = 5  
+        self.heartbeat_interval = 5
         self.is_connected = False
         self.message_queue = Queue()  # Queue for storing messages
 
@@ -89,11 +89,19 @@ class MQTTHandler:
                 self.client.connect(self.broker_address)
                 connected = True
             except ConnectionRefusedError:
-                logger.error("Connection refused. Retrying in {} seconds...".format(self.reconnect_delay))
+                logger.error(
+                    "Connection refused. Retrying in {} seconds...".format(
+                        self.reconnect_delay
+                    )
+                )
                 time.sleep(self.reconnect_delay)
             except OSError as e:
                 if e.errno == 65:
-                    logger.error("No route to host. Retrying in {} seconds...".format(self.reconnect_delay))
+                    logger.error(
+                        "No route to host. Retrying in {} seconds...".format(
+                            self.reconnect_delay
+                        )
+                    )
                     time.sleep(self.reconnect_delay)
                 else:
                     raise
@@ -123,7 +131,11 @@ class MQTTHandler:
                 self.client.connect(self.broker_address)
                 connected = True
             except ConnectionRefusedError:
-                logger.error("Connection refused. Retrying in {} seconds...".format(self.reconnect_delay))
+                logger.error(
+                    "Connection refused. Retrying in {} seconds...".format(
+                        self.reconnect_delay
+                    )
+                )
                 time.sleep(self.reconnect_delay)
         self.client.loop_start()
         self.publisher_thread = threading.Thread(target=self.publisher)
@@ -150,8 +162,8 @@ class MQTTHandler:
                     time.sleep(self.reconnect_delay)
                 except Exception as e:
                     logger.error(f"Failed to send message: {e}")
-                    self.message_queue.put(message) 
-                    time.sleep(self.reconnect_delay) 
+                    self.message_queue.put(message)
+                    time.sleep(self.reconnect_delay)
             else:
                 logger.debug("Client is not connected. Skipping message.")
                 self.message_queue.put(message)
