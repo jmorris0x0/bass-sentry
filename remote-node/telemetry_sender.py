@@ -80,7 +80,24 @@ class MQTTHandler:
         )
         time.sleep(self.reconnect_delay)
         self.reconnect_delay = min(self.reconnect_delay * 2, 60)
-        client.reconnect()
+
+        while True:
+            try:
+                client.reconnect()
+                break
+            except (OSError, ConnectionRefusedError) as e:
+                if isinstance(e, OSError) and e.errno == 65:
+                    logger.warning(
+                        f"Failed to reconnect to the broker. Retrying in {self.reconnect_delay} s..."
+                    )
+                elif isinstance(e, ConnectionRefusedError):
+                    logger.warning(
+                        f"Connection refused by the broker. Retrying in {self.reconnect_delay} s..."
+                    )
+                else:
+                    raise
+
+                time.sleep(self.reconnect_delay)
 
     def start(self):
         retry_interval = 0.25  # Initial retry interval in seconds
@@ -90,17 +107,20 @@ class MQTTHandler:
             try:
                 self.client.connect(self.broker_address, 1883, 60)
                 break  # Exit the loop if the connection is successful
-            except OSError as e:
-                if e.errno == 65:
+            except (OSError, ConnectionRefusedError) as e:
+                if isinstance(e, OSError) and e.errno == 65:
                     logger.warning(
                         f"Failed to connect to the broker. Retrying in {retry_interval} s..."
                     )
-                    time.sleep(retry_interval)
-                    retry_interval = min(retry_interval * 2, max_retry_interval)
+                elif isinstance(e, ConnectionRefusedError):
+                    logger.warning(
+                        f"Connection refused by the broker. Retrying in {retry_interval} s..."
+                    )
                 else:
-                    raise  # Reraise the exception if it is not "No route to host"
+                    raise  # Reraise the exception if it's not handled
 
-        self.client.loop_start()
+                time.sleep(retry_interval)
+                retry_interval = min(retry_interval * 2, max_retry_interval)
 
     def stop(self):
         self.client.loop_stop()
