@@ -23,6 +23,9 @@ FORMAT = np.int16  # 16 bit audio
 CHANNELS = 1
 SENDING_RATE = 2  # Hz
 CHUNK = int(RATE / SENDING_RATE)
+# TODO: Casting as int doesn't use ns precision. Change to ns or switch ts precision to µs.
+# There are other places to change as well.
+
 DBFS_TO_DBSPL_CONVERSION_FACTOR = 94
 
 
