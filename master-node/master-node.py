@@ -15,7 +15,7 @@ from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
@@ -122,7 +122,9 @@ class DataManager:
             if node_name not in self.healthy_nodes:
                 logger.info(f"Discovered new node: {node_name}")
             self.healthy_nodes.add(node_name)
+            self.connected_nodes.add(node_name)  # Also add to connected nodes
             self.last_health_check[node_name] = time.time()
+            logger.debug(f"Current connected nodes: {self.connected_nodes}")
 
     def check_unhealthy_nodes(self):
         while True:
