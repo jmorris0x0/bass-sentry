@@ -143,9 +143,13 @@ def sender(data_queue):
 
             json_data = {
                 "station_id": telemetry.unit_name,
+                "data_type": "scalar_ts",
                 "timestamp": timestamp,
-                "15-100Hz": db_val,
+                "time_precision": "ns",
+                "tags": {},
+                "fields": {"15-100Hz": db_val},
             }
+
             telemetry.send_data(json_data)
     except KeyboardInterrupt:
         telemetry.stop()

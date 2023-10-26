@@ -2,3 +2,4 @@ paho-mqtt==1.5.1
 pandas
 influxdb-client
 zeroconf==0.33.4
+jsonschema

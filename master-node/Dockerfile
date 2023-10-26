@@ -9,5 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the main application script
 COPY master-node.py .
+COPY data_handler.py .
+COPY data_manager.py .
 
 CMD ["python", "master-node.py"]
