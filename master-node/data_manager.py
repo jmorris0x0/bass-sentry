@@ -47,7 +47,7 @@ class DataManager:
         threading.Thread(target=self.check_unhealthy_nodes, daemon=True).start()
         threading.Thread(
             target=self.subscribe_to_topics_periodically, daemon=True
-        ).start()  # Corrected
+        ).start()
 
         logger.info("Master node started successfully.")
         logger.info("Press Ctrl+C to exit...")
@@ -112,7 +112,7 @@ class DataManager:
             if topic not in self.subscribed_topics:
                 self.mqtt_client.subscribe(topic)
                 logger.info(f"Subscribed to topic: {topic}")
-                self.subscribed_topics.add(topic)  # Mark the topic as subscribed
+                self.subscribed_topics.add(topic)
 
     def handle_health_check(self, payload):
         with self.lock:

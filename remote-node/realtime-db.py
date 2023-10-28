@@ -12,7 +12,7 @@ import ntplib
 import sounddevice as sd
 from telemetry_sender import TelemetrySender
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 # logging.basicConfig(level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
@@ -23,9 +23,6 @@ FORMAT = np.int16  # 16 bit audio
 CHANNELS = 1
 SENDING_RATE = 2  # Hz
 CHUNK = int(RATE / SENDING_RATE)
-# TODO: Casting as int doesn't use ns precision. Change to ns or switch ts precision to µs.
-# There are other places to change as well.
-
 DBFS_TO_DBSPL_CONVERSION_FACTOR = 94
 
 
@@ -130,11 +127,15 @@ def sender(data_queue):
             except multiprocessing.queues.Empty:
                 continue
 
+            current_timestamp = int(time.time() * 1e9)
+            drift = current_timestamp - timestamp
+            logger.debug(f"Timestamp drift: {drift} ns")
+
             if prev_timestamp is not None:  # If this is not the first timestamp
                 diff = (
                     timestamp - prev_timestamp
                 )  # Calculate the difference with the previous timestamp
-                logger.debug(f"Timestamp difference: {diff} ns")  # Log the difference
+                logger.debug(f"Timestamp diff: {diff} ns")  # Log the difference
 
             prev_timestamp = (
                 timestamp  # Update the previous timestamp for the next iteration
