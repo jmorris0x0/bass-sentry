@@ -3,6 +3,8 @@ import jsonschema
 from typing import Dict, Any, List
 import numpy as np
 from influxdb_client import Point, WritePrecision
+from scipy.fftpack import fft, ifft
+from scipy.stats import pearsonr
 
 logger = logging.getLogger(__name__)
 
@@ -10,18 +12,32 @@ logger = logging.getLogger(__name__)
 class DataHandler:
     def __init__(self):
         self.processors = {
-            "db_fs": dbFS(),
-            "scalar_ts": ScalarTS(),
-            "chunk_to_scalar": ChunkToScalar(),
-            "chunk_to_stream": ChunkToStream(),
+            "db_fs": dbFS,
+            "scalar_ts": ScalarTS,
+            "chunk_to_scalar": ChunkToScalar,
+            "chunk_to_stream": ChunkToStream,
+            "chunk_to_cc_stream": ChunkToCCStream,
         }
+        self.instances = {}
 
-    def process_data(self, data_type, data):
-        if data_type in self.processors:
-            return self.processors[data_type].process(data)
-        else:
+    def process_data(
+        self, station_id: str, data_type: str, data: Dict[str, Any]
+    ) -> Point:
+        if data_type not in self.processors:
             logger.warning(f"Unknown data type: {data_type}")
             return None
+
+        processor_class = self.processors[data_type]
+        instance_key = (station_id, data_type)
+
+        if instance_key not in self.instances:
+            logger.info(
+                f"Creating new processor instance for station {station_id} and data type {data_type}"
+            )
+            self.instances[instance_key] = processor_class()
+
+        processor_instance = self.instances[instance_key]
+        return processor_instance.process(data)
 
 
 class DataProcessor:
@@ -156,6 +172,74 @@ class dbFS(DataProcessor):
             point.field(f"{band_name}_dbFS", dbfs_value)
 
         return point
+
+
+import numpy as np
+from scipy.fftpack import fft, ifft
+from scipy.stats import pearsonr
+from influxdb_client import Point
+
+
+class ChunkToCCStream(DataProcessor):
+    def __init__(self):
+        self.reference_stream = None  # Buffer for reference stream
+        self.remote_streams = {}  # Dictionary to store buffers for each remote stream
+
+    def process(self, data: Dict[str, Any]) -> Point:
+        station_id = data["station_id"]
+        stream_type = data.get("stream_type")
+        if stream_type == "reference":
+            self.process_reference_stream(data)
+        elif stream_type == "remote":
+            self.process_remote_stream(data)
+        else:
+            logger.error("Unknown stream type: {}".format(stream_type))
+            return None
+
+        if self.reference_stream is not None:
+            for remote_id, remote_stream in self.remote_streams.items():
+                db, tau = self.cross_correlate(self.reference_stream, remote_stream)
+                point = Point("CrossCorrelation")
+                point.tag("station_id", station_id)
+                point.tag("remote_id", remote_id)
+                point.field("db", db)
+                point.field("tau", tau)
+                return point
+
+    def process_reference_stream(self, data: Dict[str, Any]):
+        # Logic to handle reference stream data
+        self.reference_stream = data["chunk"]
+
+    def process_remote_stream(self, data: Dict[str, Any]):
+        # Logic to handle remote stream data
+        remote_id = data["remote_id"]
+        self.remote_streams[remote_id] = data["chunk"]
+
+    def cross_correlate(self, ref_stream, remote_stream):
+        fs = 44100  # Assume a fixed sampling rate for now
+        db, tau, _, _ = rcc(ref_stream, remote_stream, fs)
+        return db, tau
+
+    def rcc(self, sig1, sig2, fs, ref_amp=10000.0):
+        if len(sig1) != len(sig2):
+            raise ValueError("Input signals must be the same length")
+        if fs <= 0:
+            raise ValueError("Sampling frequency must be positive")
+
+        n = len(sig1)
+        SIG1 = fft(sig1, n=n)
+        SIG2 = fft(sig2, n=n)
+        cc = np.real(ifft(SIG2 * np.conj(SIG1)))
+
+        shift = np.argmax(np.abs(cc))
+        tau = shift / fs
+
+        amplitude = np.max(np.abs(cc))
+        db = 20 * np.log10(amplitude / ref_amp)
+
+        r, _ = pearsonr(sig1, sig2)
+
+        return db, tau, _, _
 
 
 class ChunkToScalar(DataProcessor):

@@ -3,3 +3,4 @@ pandas
 influxdb-client
 zeroconf==0.33.4
 jsonschema
+scipy

@@ -23,6 +23,8 @@ class DataManager:
         self.influx_client = self._connect_to_influx(
             influx_url, influx_token, influx_bucket, influx_org
         )
+        self.write_api = self.influx_client.write_api(write_options=SYNCHRONOUS)
+        self.write_api.errors_callback = self.write_errors_callback
         self.mqtt_client = self._connect_to_mqtt(mqtt_host, mqtt_port)
         self.healthy_nodes = set()
         self.last_health_check = {}
@@ -143,17 +145,26 @@ class DataManager:
                 )
 
     def handle_data_point(self, topic, payload):
+        station_id = payload.get("station_id")
+        if station_id is None:
+            logger.error("No station_id provided in the payload")
+            return
+
         data_type = payload.get(
             "data_type", "scalar_ts"
         )  # Default to "scalar_ts" if no data_type is provided
-        processed_data = self.data_handler.process_data(data_type, payload)
+
+        processed_data = self.data_handler.process_data(station_id, data_type, payload)
         if processed_data is not None:
             self.write_to_influxdb(topic, processed_data)
 
+    def write_errors_callback(self, write_errors):
+        for error in write_errors:
+            logger.error(f"Failed to write data to InfluxDB. Error: {str(error)}")
+
     def write_to_influxdb(self, topic, point):
-        write_api = self.influx_client.write_api(write_options=SYNCHRONOUS)
         try:
-            write_api.write(bucket="mybucket", org="myorg", record=point)
+            self.write_api.write(bucket="mybucket", org="myorg", record=point)
             logger.debug(f"Sent to InfluxDB for topic '{topic}' with payload '{point}'")
         except Exception as e:
             logger.error(

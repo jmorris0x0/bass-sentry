@@ -139,6 +139,16 @@ class MQTTHandler:
                     )
                 )
                 time.sleep(self.reconnect_delay)
+            except OSError as e:
+                if e.errno == 65:  # No route to host
+                    logger.error(
+                        "No route to host. Retrying in {} seconds...".format(
+                            self.reconnect_delay
+                        )
+                    )
+                    time.sleep(self.reconnect_delay)
+                else:
+                    raise  # re-raise for other OS errors
         self.client.loop_start()
         self.publisher_thread = threading.Thread(target=self.publisher)
         self.publisher_thread.start()
