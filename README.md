@@ -14,4 +14,7 @@ from(bucket: "mybucket")
   |> yield(name: "mean")
 
 
+Use this to create a new password for greylog:
+
+echo -n yourpassword | shasum -a 256
 
