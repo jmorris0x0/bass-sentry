@@ -1,0 +1,12 @@
+{
+  "steps": {
+    "1": {
+      "id": "1",
+      "type": "dbfs_measurement",
+      "params": {
+        "bit_depth": 16
+      },
+      "next": []
+    }
+  }
+}

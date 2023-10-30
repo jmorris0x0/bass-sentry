@@ -1,21 +1,19 @@
-from datetime import datetime
-from time import ctime
+import json
 import logging
 import multiprocessing
-import numpy as np
 import signal
 import sys
 import time
 from functools import partial
+import functools
 
+import numpy as np
 import ntplib
 import sounddevice as sd
+from scipy.signal import fftconvolve
 from telemetry_sender import TelemetrySender
 
-logging.basicConfig(level=logging.DEBUG)
-# logging.basicConfig(level=logging.DEBUG)
-
-logger = logging.getLogger(__name__)
+from processors import SignalProcessor
 
 default_device_info = sd.query_devices(kind="input")
 RATE = int(default_device_info["default_samplerate"])
@@ -23,10 +21,14 @@ FORMAT = np.int16  # 16 bit audio
 CHANNELS = 1
 SENDING_RATE = 2  # Hz
 CHUNK = int(RATE / SENDING_RATE)
-DBFS_TO_DBSPL_CONVERSION_FACTOR = 94
 
+def setup_logging():
+    logging.basicConfig(level=logging.DEBUG)
+    logger = logging.getLogger(__name__)
+    return logger
 
-def signal_handler(sig, frame):
+def signal_handler(recorder_process, sender_process, sig, frame):
+    logger = setup_logging()
     logger.info("Received signal to terminate.")
     recorder_process.terminate()
     sender_process.terminate()
@@ -34,31 +36,15 @@ def signal_handler(sig, frame):
     sender_process.join()
     sys.exit(0)
 
-
-def rms(data):
-    return np.sqrt(np.mean(data**2))
-
-
-def rms_to_db(rms_val, bit_depth=16):
-    if rms_val == 0:
-        return -np.inf
-    reference = 2 ** (bit_depth - 1)
-    return 20 * np.log10(rms_val / reference)
-
-
-def dbfs_to_dbspl(dbfs_val, conversion_factor):
-    return dbfs_val + conversion_factor
-
-
 def get_ntp_offset(ntp_server="pool.ntp.org"):
+    logger = setup_logging()
     try:
         c = ntplib.NTPClient()
         response = c.request(ntp_server, version=3)
         return response.offset
     except Exception as e:
         logger.error(f"Failed to get NTP offset: {e}")
-        return 0  # return a default value or handle the error as appropriate
-
+        return 0
 
 def callback(
     indata,
@@ -70,6 +56,7 @@ def callback(
     ns_between_messages,
     sample_counter,
 ):
+    logger = setup_logging()
     if status:
         if status & sd.CallbackFlags.input_overflow:
             logger.error(
@@ -85,8 +72,8 @@ def callback(
     data_queue.put((indata.copy(), timestamp))
     sample_counter.value += 1
 
-
 def recorder(data_queue, sample_counter):
+    logger = setup_logging()
     ntp_offset = get_ntp_offset()
     initial_time = int((time.time_ns() + ntp_offset * 1e9))
     ns_between_messages = int(1e9 / SENDING_RATE)
@@ -104,26 +91,30 @@ def recorder(data_queue, sample_counter):
         dtype=FORMAT,
         samplerate=RATE,
         blocksize=CHUNK,
-        finished_callback=lambda: print("Stream finished"),
+        finished_callback=lambda: logger.info("Stream finished"),
     )
     try:
         with stream:
             while True:
-                time.sleep(0.1)  # Keep the main thread alive
+                time.sleep(0.1)
     except KeyboardInterrupt:
         logger.info("Recording stopped by user")
         return
 
-
 def sender(data_queue):
+    logger = setup_logging()
     telemetry = TelemetrySender(topic_suffix="remote_node")
-    prev_timestamp = None  # Initialize a variable to store the previous timestamp
+    prev_timestamp = None
+
+    # Create an instance of SignalProcessor
+    signal_processor = SignalProcessor("signal-chain.json")
+
     try:
         while True:
             try:
                 data, timestamp = data_queue.get(
                     timeout=1
-                )  # Timeout to handle empty queue
+                )
             except multiprocessing.queues.Empty:
                 continue
 
@@ -131,19 +122,14 @@ def sender(data_queue):
             drift = current_timestamp - timestamp
             logger.debug(f"Timestamp drift: {drift} ns")
 
-            if prev_timestamp is not None:  # If this is not the first timestamp
-                diff = (
-                    timestamp - prev_timestamp
-                )  # Calculate the difference with the previous timestamp
-                logger.debug(f"Timestamp diff: {diff} ns")  # Log the difference
+            if prev_timestamp is not None:
+                diff = timestamp - prev_timestamp
+                logger.debug(f"Timestamp diff: {diff} ns")
 
-            prev_timestamp = (
-                timestamp  # Update the previous timestamp for the next iteration
-            )
+            prev_timestamp = timestamp
 
             np_data = np.frombuffer(data, dtype=np.int16).astype(float)
-            rms_val = rms(np_data)
-            db_val = rms_to_db(rms_val)
+            processed_data = signal_processor.process(np_data)
 
             json_data = {
                 "station_id": telemetry.unit_name,
@@ -151,7 +137,7 @@ def sender(data_queue):
                 "timestamp": timestamp,
                 "time_precision": "ns",
                 "tags": {},
-                "fields": {"15-100Hz": db_val},
+                "fields": {"15-100Hz": processed_data},
             }
 
             telemetry.send_data(json_data)
@@ -162,30 +148,33 @@ def sender(data_queue):
         telemetry.stop()
 
 
-if __name__ == "__main__":
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-
-    logger.info(f"RATE: {RATE}, SENDING_RATE: {SENDING_RATE}, CHUNK: {CHUNK}")
-
+def main():
     data_queue = multiprocessing.Queue()
-    sample_counter = multiprocessing.Value("i", 0)  # 'i' indicates a signed int
+    sample_counter = multiprocessing.Value("i", 0)
 
     recorder_process = multiprocessing.Process(
         target=recorder, args=(data_queue, sample_counter)
     )
-    sender_process = multiprocessing.Process(target=sender, args=(data_queue,))
+    sender_process = multiprocessing.Process(
+        target=sender, args=(data_queue,)
+    )
+
+    recorder_process.start()
+    sender_process.start()
+
+    handler = functools.partial(signal_handler, recorder_process, sender_process)
+    signal.signal(signal.SIGTERM, handler)
+    signal.signal(signal.SIGINT, handler)
 
     try:
-        recorder_process.start()
-        sender_process.start()
-
         recorder_process.join()
         sender_process.join()
     except KeyboardInterrupt:
-        logger.info("Terminating due to Ctrl+C")
-    finally:
-        recorder_process.terminate()
-        sender_process.terminate()
-        recorder_process.join()
-        sender_process.join()
+        logger = setup_logging()
+        logger.info("Keyboard interrupt received, terminating processes...")
+        signal_handler(recorder_process, sender_process, None, None)
+
+if __name__ == "__main__":
+    multiprocessing.set_start_method("spawn", force=True)
+    main()
+
