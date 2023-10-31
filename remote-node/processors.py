@@ -63,6 +63,7 @@ class DbfsMeasurement:
         reference = 2 ** (self.bit_depth - 1)
         return 20 * np.log10(rms_val / reference)
 
+
 class BandpassFilter:
     def __init__(self, low_cut, high_cut, buffer_size, filter_coeffs, segment_size):
         self.low_cut = low_cut
@@ -87,6 +88,7 @@ class BandpassFilter:
         signal = np.concatenate(chunks)
         return overlap_save(signal, self.filter_coeffs, self.segment_size)
 
+
 def overlap_save(signal, filter_coeffs, segment_size):
     filter_length = len(filter_coeffs)
     overlap = filter_length - 1
@@ -99,14 +101,14 @@ def overlap_save(signal, filter_coeffs, segment_size):
         end = start + segment_size
         chunk = padded_signal[start:end]
         filtered_chunk = fftconvolve(chunk, filter_coeffs, mode="full")[:segment_size]
-        output[start:start + len(filtered_chunk)] += filtered_chunk
+        output[start : start + len(filtered_chunk)] += filtered_chunk
 
-    return output[:len(signal)]
+    return output[: len(signal)]
+
 
 class Downsample:
     def __init__(self, factor):
         self.factor = factor
 
     def process(self, data):
-        return data[::self.factor]
-
+        return data[:: self.factor]

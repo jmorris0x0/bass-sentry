@@ -23,10 +23,12 @@ CHANNELS = 1
 SENDING_RATE = 2  # Hz
 CHUNK = int(RATE / SENDING_RATE)
 
+
 def setup_logging():
     logging.basicConfig(level=logging.DEBUG)
     logger = logging.getLogger(__name__)
     return logger
+
 
 def signal_handler(recorder_process, sender_process, sig, frame):
     logger = setup_logging()
@@ -37,6 +39,7 @@ def signal_handler(recorder_process, sender_process, sig, frame):
     sender_process.join()
     sys.exit(0)
 
+
 def get_ntp_offset(ntp_server="pool.ntp.org"):
     logger = setup_logging()
     try:
@@ -46,6 +49,7 @@ def get_ntp_offset(ntp_server="pool.ntp.org"):
     except Exception as e:
         logger.error(f"Failed to get NTP offset: {e}")
         return 0
+
 
 def callback(
     indata,
@@ -72,6 +76,7 @@ def callback(
     )
     data_queue.put((indata.copy(), timestamp))
     sample_counter.value += 1
+
 
 def recorder(data_queue, sample_counter):
     logger = setup_logging()
@@ -102,6 +107,7 @@ def recorder(data_queue, sample_counter):
         logger.info("Recording stopped by user")
         return
 
+
 def sender(data_queue, config):
     logger = setup_logging()
     telemetry = TelemetrySender(topic_suffix="remote_node")
@@ -113,9 +119,7 @@ def sender(data_queue, config):
     try:
         while True:
             try:
-                data, timestamp = data_queue.get(
-                    timeout=1
-                )
+                data, timestamp = data_queue.get(timeout=1)
             except multiprocessing.queues.Empty:
                 continue
 
@@ -150,12 +154,12 @@ def sender(data_queue, config):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Process signals.')
-    parser.add_argument('config', type=str, help='Path to the JSON configuration file')
+    parser = argparse.ArgumentParser(description="Process signals.")
+    parser.add_argument("config", type=str, help="Path to the JSON configuration file")
     args = parser.parse_args()
 
     # Read the JSON configuration file
-    with open(args.config, 'r') as f:
+    with open(args.config, "r") as f:
         config = json.load(f)
 
     data_queue = multiprocessing.Queue()
@@ -165,9 +169,7 @@ def main():
         target=recorder, args=(data_queue, sample_counter)
     )
 
-    sender_process = multiprocessing.Process(
-        target=sender, args=(data_queue, config)
-    )
+    sender_process = multiprocessing.Process(target=sender, args=(data_queue, config))
 
     recorder_process.start()
     sender_process.start()
@@ -184,7 +186,7 @@ def main():
         logger.info("Keyboard interrupt received, terminating processes...")
         signal_handler(recorder_process, sender_process, None, None)
 
+
 if __name__ == "__main__":
     multiprocessing.set_start_method("spawn", force=True)
     main()
-
