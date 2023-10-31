@@ -59,6 +59,7 @@ class SignalProcessor:
             "dbfs_measurement": DbfsMeasurement,
             "bandpass_filter": BandpassFilter,
             "resample": Resample,
+            "metadata_tagger": MetadataTagger,
         }
         self.dag_processor = DAGProcessor(self.steps, self.step_map)
 
@@ -154,5 +155,16 @@ class Resample:
         data["data"] = resampled_data
         data["metadata"]["sample_rate"] = self.new_sample_rate
 
+        return data
+
+
+class MetadataTagger:
+    def __init__(self, tag):
+        self.tag = tag
+
+    def process(self, data):
+        if 'tags' not in data['metadata']:
+            data['metadata']['tags'] = []
+        data['metadata']['tags'].append(self.tag)
         return data
 
