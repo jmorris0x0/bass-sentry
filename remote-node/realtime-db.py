@@ -151,20 +151,23 @@ def sender(data_queue, config):
                 },
                 "timestamp": timestamp,
             }
-            
-            processed_data = signal_processor.process(audio_data)
+           
 
-            json_data = {
-                "station_id": telemetry.unit_name,
-                "data_type": "scalar",
-                "data": processed_data["data"],
-                "metadata": {
-                    "units": "dBFS",
-                },
-                "timestamp": processed_data["timestamp"],
-            }
+            processed_data_list = signal_processor.process(audio_data)
 
-            telemetry.send_data(json_data)
+            for processed_data in processed_data_list:
+                json_data = {
+                    "station_id": telemetry.unit_name,
+                    "data_type": "scalar",
+                    "data": processed_data["data"],
+                    "metadata": {
+                        "units": "dBFS",
+                    },
+                    "timestamp": processed_data["timestamp"],
+                }
+
+                telemetry.send_data(json_data)
+
     except KeyboardInterrupt:
         telemetry.stop()
     except Exception as e:

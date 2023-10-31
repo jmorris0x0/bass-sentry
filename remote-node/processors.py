@@ -19,7 +19,7 @@ class SignalProcessor:
     def process(self, data):
         first_step_id = list(self.steps.keys())[0]
         processed_data = self.process_step(data, first_step_id)
-        return processed_data
+        return processed_data if isinstance(processed_data, list) else [processed_data]
 
     def process_step(self, data, step_id):
         step = self.steps.get(step_id)
@@ -150,11 +150,14 @@ class Resample:
         # Calculate the number of samples to carry over to the next chunk
         num_carry = num_samples - len(resampled_data)
    
-
         # Save the last few samples in the buffer for the next chunk
         if num_carry > 0:
-            self.buffer = resampled_data[-num_carry:]
-            resampled_data = resampled_data[:-num_carry]
+            if num_carry > len(resampled_data):
+                # Keep the buffer unchanged
+                pass
+            else:
+                self.buffer = resampled_data[-num_carry:]
+                resampled_data = resampled_data[:-num_carry]
         else:
             self.buffer = resampled_data[num_samples:]  # Save the extra samples for the next chunk
             resampled_data = resampled_data[:num_samples]
