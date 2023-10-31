@@ -6,7 +6,7 @@
       "params": {
         "low_freq": 35,
         "high_freq": 250,
-        "sample_rate": 44100  // or whatever your sample rate is
+        "sample_rate": 44100
       },
       "next": ["2"]
     },

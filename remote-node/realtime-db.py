@@ -17,8 +17,15 @@ from telemetry_sender import TelemetrySender
 from processors import SignalProcessor
 
 default_device_info = sd.query_devices(kind="input")
+BIT_DEPTH = 16
+DATA_TYPE_MAPPING = {
+    8: np.int8,
+    16: np.int16,
+    32: np.int32,
+    64: np.int64,
+}
+FORMAT = DATA_TYPE_MAPPING[BIT_DEPTH]
 RATE = int(default_device_info["default_samplerate"])
-FORMAT = np.int16  # 16 bit audio
 CHANNELS = 1
 SENDING_RATE = 2  # Hz
 CHUNK = int(RATE / SENDING_RATE)
@@ -134,15 +141,27 @@ def sender(data_queue, config):
             prev_timestamp = timestamp
 
             np_data = np.frombuffer(data, dtype=np.int16).astype(float)
-            processed_data = signal_processor.process(np_data)
+            
+            audio_data = {
+                "data_type": "audio_chunk",
+                "data": np_data.tolist(),  # convert NumPy array to list
+                "metadata": {
+                    "sample_rate": RATE,
+                    "bit_depth": BIT_DEPTH,
+                },
+                "timestamp": timestamp,
+            }
+            
+            processed_data = signal_processor.process(audio_data)
 
             json_data = {
                 "station_id": telemetry.unit_name,
-                "data_type": "scalar_ts",
-                "timestamp": timestamp,
-                "time_precision": "ns",
-                "tags": {},
-                "fields": {"15-100Hz": processed_data},
+                "data_type": "scalar",
+                "data": processed_data["data"],
+                "metadata": {
+                    "units": "dBFS",
+                },
+                "timestamp": processed_data["timestamp"],
             }
 
             telemetry.send_data(json_data)

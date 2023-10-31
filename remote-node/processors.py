@@ -1,10 +1,10 @@
 import logging
-import json
 import numpy as np
-import numpy as np
-import ntplib
-import sounddevice as sd
-from scipy.signal import fftconvolve
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from copy import deepcopy
+from scipy.signal import resample
+
+logger = logging.getLogger(__name__)
 
 
 class SignalProcessor:
@@ -13,7 +13,7 @@ class SignalProcessor:
         self.step_map = {
             "dbfs_measurement": DbfsMeasurement,
             "bandpass_filter": BandpassFilter,
-            "downsample": Downsample,
+            "resample": Resample,
         }
 
     def process(self, data):
@@ -31,84 +31,137 @@ class SignalProcessor:
             raise ValueError(f"Unknown step type: {step_type}")
 
         StepClass = self.step_map[step_type]
-        if StepClass is not None:
-            params = step.get("params", {})
-            processor = StepClass(**params)
-            processed_data = processor.process(data)
-        else:
-            processed_data = data
+        params = step.get("params", {})
+        processor = StepClass(**params)
+        processed_data = processor.process(deepcopy(data))  # Make a deep copy of the data
 
-        for next_step_id in step.get("next", []):
-            processed_data = self.process_step(processed_data, next_step_id)
+        if processed_data is None:
+            return None  # Do not process further until buffer is full
 
-        return processed_data
+        next_steps = step.get("next", [])
+        if not next_steps:
+            return processed_data  # No next steps, return processed data
+
+        # Use ThreadPoolExecutor for parallel processing of branches
+        with ThreadPoolExecutor() as executor:
+            futures = {}
+            for next_step_id in next_steps:
+                if len(next_steps) > 1:
+                    # Make a deep copy of the processed data if there are multiple next steps
+                    next_data = deepcopy(processed_data)
+                else:
+                    next_data = processed_data  # No need to make a copy if there is only one next step
+                future = executor.submit(self.process_step, next_data, next_step_id)
+                futures[future] = next_step_id
+
+            results = []
+            for future in as_completed(futures):
+                step_id = futures[future]
+                try:
+                    result = future.result()
+                    if result is not None:
+                        results.extend(result if isinstance(result, list) else [result])  # Flatten the list
+                except Exception as exc:
+                    logger.error(f"Step {step_id} generated an exception: {exc}")
+
+            return results  # Return list of results
 
 
 class DbfsMeasurement:
-    def __init__(self, bit_depth=16):
-        self.bit_depth = bit_depth
-
     def process(self, data):
-        rms_val = self.rms(data)
-        db_val = self.rms_to_db(rms_val)
-        return db_val
+        bit_depth = data["metadata"]["bit_depth"]  # Get bit_depth from data dictionary
+        rms_val = self.rms(data["data"])
+        db_val = self.rms_to_db(rms_val, bit_depth)
+        return {
+            "data_type": "scalar",
+            "timestamp": data["timestamp"],
+            "data": db_val,
+            "metadata": {
+                "units": "dBFS",
+            },
+        }
 
     @staticmethod
     def rms(data):
-        return np.sqrt(np.mean(data**2))
+        return np.sqrt(np.mean(np.array(data)**2))
 
-    def rms_to_db(self, rms_val):
+    def rms_to_db(self, rms_val, bit_depth):
         if rms_val == 0:
             return -np.inf
-        reference = 2 ** (self.bit_depth - 1)
+        reference = 2 ** (bit_depth - 1)
         return 20 * np.log10(rms_val / reference)
 
 
 class BandpassFilter:
-    def __init__(self, low_cut, high_cut, buffer_size, filter_coeffs, segment_size):
+    def __init__(self, low_cut, high_cut, sample_rate):
         self.low_cut = low_cut
         self.high_cut = high_cut
-        self.buffer_size = buffer_size
+        self.sample_rate = sample_rate
+        self.last_overlap = np.array([])
+
+    def process(self, audio_data):
+        processed_data = self.overlap_save(audio_data["data"])
+        audio_data["data_type"] = "audio_chunk"
+        audio_data["data"] = processed_data  # Keep it as a NumPy array
+        audio_data["metadata"]["filter_low"] = self.low_cut
+        audio_data["metadata"]["filter_high"] = self.high_cut
+        return audio_data
+
+    def overlap_save(self, signal):
+        segment_size = len(signal)
+        overlap = segment_size - 1
+        output = np.zeros(segment_size)
+
+        if len(self.last_overlap) > 0:
+            signal = np.concatenate((self.last_overlap, signal))
+
+        f_signal = np.fft.fft(signal, n=segment_size + overlap)
+        frequencies = np.fft.fftfreq(segment_size + overlap, d=1 / self.sample_rate)
+        mask = (frequencies > self.low_cut) & (frequencies < self.high_cut)
+        f_signal[~mask] = 0
+        filtered_signal = np.fft.ifft(f_signal)
+        output[:segment_size] = np.real(filtered_signal[:segment_size])  # Explicitly take the real part
+
+        self.last_overlap = signal[-overlap:]
+        return output
+
+
+class Resample:
+    def __init__(self, new_sample_rate):
+        self.new_sample_rate = new_sample_rate
         self.buffer = []
-        self.filter_coeffs = filter_coeffs
-        self.segment_size = segment_size
+        self.old_sample_rate = None  # We'll set this when we process the first chunk
 
     def process(self, data):
-        self.buffer.append(data)
-        if len(self.buffer) > self.buffer_size:
-            self.buffer.pop(0)
+        # Add data to buffer
+        data["data"] = np.concatenate([self.buffer, data["data"]])
 
-        if len(self.buffer) < self.buffer_size:
-            return None
+        if self.old_sample_rate is None:
+            # Set old_sample_rate from the first chunk
+            self.old_sample_rate = data["metadata"]["sample_rate"]
 
-        processed_data = self.overlap_save_algorithm(self.buffer)
-        return processed_data
-
-    def overlap_save_algorithm(self, chunks):
-        signal = np.concatenate(chunks)
-        return overlap_save(signal, self.filter_coeffs, self.segment_size)
+        # Calculate the number of samples in the resampled data
+        num_samples = int(len(data["data"]) * self.new_sample_rate / self.old_sample_rate)
 
 
-def overlap_save(signal, filter_coeffs, segment_size):
-    filter_length = len(filter_coeffs)
-    overlap = filter_length - 1
+        # Resample the data
+        resampled_data = resample(data["data"], num_samples)
+    
+        # Calculate the number of samples to carry over to the next chunk
+        num_carry = num_samples - len(resampled_data)
+   
 
-    padded_signal = np.pad(signal, (overlap, 0))
+        # Save the last few samples in the buffer for the next chunk
+        if num_carry > 0:
+            self.buffer = resampled_data[-num_carry:]
+            resampled_data = resampled_data[:-num_carry]
+        else:
+            self.buffer = resampled_data[num_samples:]  # Save the extra samples for the next chunk
+            resampled_data = resampled_data[:num_samples]
 
-    output = np.zeros(len(signal))
+        # Update the data dictionary
+        data["data_type"] = "audio_chunk"
+        data["data"] = resampled_data
+        data["metadata"]["sample_rate"] = self.new_sample_rate
 
-    for start in range(0, len(padded_signal) - overlap, segment_size):
-        end = start + segment_size
-        chunk = padded_signal[start:end]
-        filtered_chunk = fftconvolve(chunk, filter_coeffs, mode="full")[:segment_size]
-        output[start : start + len(filtered_chunk)] += filtered_chunk
-
-    return output[: len(signal)]
-
-
-class Downsample:
-    def __init__(self, factor):
-        self.factor = factor
-
-    def process(self, data):
-        return data[:: self.factor]
+        return data

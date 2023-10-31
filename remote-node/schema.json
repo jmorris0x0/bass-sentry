@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "data_type": {
+      "type": "string",
+      "enum": ["audio_chunk", "scalar"]
+    },
+    "timestamp": {
+      "type": "integer"
+    }
+  },
+  "required": ["data_type", "timestamp"],
+  "oneOf": [
+    {
+      "properties": {
+        "data_type": {
+          "const": "audio_chunk"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "sample_rate": {
+              "type": "integer"
+            },
+            "bit_depth": {
+              "type": "integer"
+            },
+            "filter_low": {
+              "type": "integer"
+            },
+            "filter_high": {
+              "type": "integer"
+            }
+          },
+          "required": ["sample_rate", "bit_depth"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["data", "metadata"]
+    },
+    {
+      "properties": {
+        "data_type": {
+          "const": "scalar"
+        },
+        "data": {
+          "type": "number"
+        },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "units": {
+              "type": "string"
+            },
+            "filter_low": {
+              "type": "integer"
+            },
+            "filter_high": {
+              "type": "integer"
+            }
+          },
+          "required": ["units"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["data", "metadata"]
+    }
+  ],
+  "additionalProperties": false
+}
+
