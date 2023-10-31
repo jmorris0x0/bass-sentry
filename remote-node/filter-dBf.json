@@ -1,0 +1,23 @@
+{
+  "steps": {
+    "1": {
+      "id": "1",
+      "type": "bandpass_filter",
+      "params": {
+        "low_freq": 35,
+        "high_freq": 250,
+        "sample_rate": 44100  // or whatever your sample rate is
+      },
+      "next": ["2"]
+    },
+    "2": {
+      "id": "2",
+      "type": "dbfs_measurement",
+      "params": {
+        "bit_depth": 16
+      },
+      "next": []
+    }
+  }
+}
+

@@ -1,3 +1,4 @@
+import argparse
 import json
 import logging
 import multiprocessing
@@ -101,13 +102,13 @@ def recorder(data_queue, sample_counter):
         logger.info("Recording stopped by user")
         return
 
-def sender(data_queue):
+def sender(data_queue, config):
     logger = setup_logging()
     telemetry = TelemetrySender(topic_suffix="remote_node")
     prev_timestamp = None
 
     # Create an instance of SignalProcessor
-    signal_processor = SignalProcessor("signal-chain.json")
+    signal_processor = SignalProcessor(config)
 
     try:
         while True:
@@ -149,14 +150,23 @@ def sender(data_queue):
 
 
 def main():
+    parser = argparse.ArgumentParser(description='Process signals.')
+    parser.add_argument('config', type=str, help='Path to the JSON configuration file')
+    args = parser.parse_args()
+
+    # Read the JSON configuration file
+    with open(args.config, 'r') as f:
+        config = json.load(f)
+
     data_queue = multiprocessing.Queue()
     sample_counter = multiprocessing.Value("i", 0)
 
     recorder_process = multiprocessing.Process(
         target=recorder, args=(data_queue, sample_counter)
     )
+
     sender_process = multiprocessing.Process(
-        target=sender, args=(data_queue,)
+        target=sender, args=(data_queue, config)
     )
 
     recorder_process.start()

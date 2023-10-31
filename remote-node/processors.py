@@ -8,19 +8,13 @@ from scipy.signal import fftconvolve
 
 
 class SignalProcessor:
-    def __init__(self, config_file):
-        self.steps = {}
-        self.load_config(config_file)
+    def __init__(self, config):
+        self.steps = config.get("steps", {})
         self.step_map = {
             "dbfs_measurement": DbfsMeasurement,
-            "bandpass_ilter": BandpassFilter,
+            "bandpass_filter": BandpassFilter,
             "downsample": Downsample,
         }
-
-    def load_config(self, config_file):
-        with open(config_file, "r") as file:
-            config = json.load(file)
-            self.steps = config["steps"]
 
     def process(self, data):
         first_step_id = list(self.steps.keys())[0]
