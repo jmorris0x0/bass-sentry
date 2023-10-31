@@ -13,7 +13,7 @@ class DAGProcessor:
         self.steps = steps
         self.step_map = step_map
 
-    def process(self, data, step_id):
+    def process(self, data, step_id="start"):
         step = self.steps.get(step_id)
         if step is None:
             raise ValueError(f"Step with ID {step_id} not found")
@@ -24,25 +24,17 @@ class DAGProcessor:
 
         StepClass = self.step_map[step_type]
         params = step.get("params", {})
-        processor = StepClass(**params)
-        processed_data = processor.process(deepcopy(data))  # Make a deep copy of the data
-
-        if processed_data is None:
-            return None  # Do not process further until buffer is full
+        processor = StepClass(**params) if step_type != "start" else None
+        processed_data = processor.process(deepcopy(data)) if processor else data
 
         next_steps = step.get("next", [])
         if not next_steps:
-            return processed_data  # No next steps, return processed data
+            return processed_data
 
-        # Use ThreadPoolExecutor for parallel processing of branches
         with ThreadPoolExecutor() as executor:
             futures = {}
             for next_step_id in next_steps:
-                if len(next_steps) > 1:
-                    # Make a deep copy of the processed data if there are multiple next steps
-                    next_data = deepcopy(processed_data)
-                else:
-                    next_data = processed_data  # No need to make a copy if there is only one next step
+                next_data = deepcopy(processed_data) if len(next_steps) > 1 else processed_data
                 future = executor.submit(self.process, next_data, next_step_id)
                 futures[future] = next_step_id
 
@@ -52,17 +44,18 @@ class DAGProcessor:
                 try:
                     result = future.result()
                     if result is not None:
-                        results.extend(result if isinstance(result, list) else [result])  # Flatten the list
+                        results.extend(result if isinstance(result, list) else [result])
                 except Exception as exc:
                     logger.error(f"Step {step_id} generated an exception: {exc}")
 
-            return results  # Return list of results
+            return results
 
 
 class SignalProcessor:
     def __init__(self, config):
         self.steps = config.get("steps", {})
         self.step_map = {
+            "start": None,  # No processing for the start step
             "dbfs_measurement": DbfsMeasurement,
             "bandpass_filter": BandpassFilter,
             "resample": Resample,
@@ -70,8 +63,7 @@ class SignalProcessor:
         self.dag_processor = DAGProcessor(self.steps, self.step_map)
 
     def process(self, data):
-        first_step_id = list(self.steps.keys())[0]
-        processed_data = self.dag_processor.process(data, first_step_id)
+        processed_data = self.dag_processor.process(data)
         return processed_data if isinstance(processed_data, list) else [processed_data]
 
 
