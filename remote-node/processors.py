@@ -7,21 +7,12 @@ from scipy.signal import resample
 logger = logging.getLogger(__name__)
 
 
-class SignalProcessor:
-    def __init__(self, config):
-        self.steps = config.get("steps", {})
-        self.step_map = {
-            "dbfs_measurement": DbfsMeasurement,
-            "bandpass_filter": BandpassFilter,
-            "resample": Resample,
-        }
+class DAGProcessor:
+    def __init__(self, steps, step_map):
+        self.steps = steps
+        self.step_map = step_map
 
-    def process(self, data):
-        first_step_id = list(self.steps.keys())[0]
-        processed_data = self.process_step(data, first_step_id)
-        return processed_data if isinstance(processed_data, list) else [processed_data]
-
-    def process_step(self, data, step_id):
+    def process(self, data, step_id):
         step = self.steps.get(step_id)
         if step is None:
             raise ValueError(f"Step with ID {step_id} not found")
@@ -51,7 +42,7 @@ class SignalProcessor:
                     next_data = deepcopy(processed_data)
                 else:
                     next_data = processed_data  # No need to make a copy if there is only one next step
-                future = executor.submit(self.process_step, next_data, next_step_id)
+                future = executor.submit(self.process, next_data, next_step_id)
                 futures[future] = next_step_id
 
             results = []
@@ -65,6 +56,22 @@ class SignalProcessor:
                     logger.error(f"Step {step_id} generated an exception: {exc}")
 
             return results  # Return list of results
+
+
+class SignalProcessor:
+    def __init__(self, config):
+        self.steps = config.get("steps", {})
+        self.step_map = {
+            "dbfs_measurement": DbfsMeasurement,
+            "bandpass_filter": BandpassFilter,
+            "resample": Resample,
+        }
+        self.dag_processor = DAGProcessor(self.steps, self.step_map)
+
+    def process(self, data):
+        first_step_id = list(self.steps.keys())[0]
+        processed_data = self.dag_processor.process(data, first_step_id)
+        return processed_data if isinstance(processed_data, list) else [processed_data]
 
 
 class DbfsMeasurement:
