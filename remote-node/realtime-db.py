@@ -8,6 +8,7 @@ import time
 from functools import partial
 import functools
 
+from pprint import pprint
 import numpy as np
 import ntplib
 import sounddevice as sd
@@ -151,17 +152,18 @@ def sender(data_queue, config):
                 },
                 "timestamp": timestamp,
             }
-           
+
 
             processed_data_list = signal_processor.process(audio_data)
 
             for processed_data in processed_data_list:
+                pprint(processed_data)
                 json_data = {
-                    "station_id": telemetry.unit_name,
-                    "data_type": "scalar",
                     "data": processed_data["data"],
+                    "station_id": telemetry.unit_name,
+                    "data_type": processed_data["data_type"],
                     "metadata": {
-                        "units": "dBFS",
+                        "units": processed_data["metadata"]["units"],
                     },
                     "timestamp": processed_data["timestamp"],
                 }

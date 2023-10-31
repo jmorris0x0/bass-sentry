@@ -1,0 +1,9 @@
+{
+    "steps": {
+        "1": {
+            "type": "dbfs_measurement",
+            "next": []
+        }
+    }
+}
+
