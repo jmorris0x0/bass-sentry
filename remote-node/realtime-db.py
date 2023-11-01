@@ -32,6 +32,14 @@ DATA_TYPE_MAPPING = {
     64: np.int64,
 }
 FORMAT = DATA_TYPE_MAPPING[BIT_DEPTH]
+TP_FACTORS = {
+    'ns': 1,
+    'us': 1e3,
+    'ms': 1e6,
+    's': 1e9,
+}
+TIME_PRECISION = 'ns'
+TP_FACTOR = TP_FACTORS[TIME_PRECISION]
 RATE = int(default_device_info["default_samplerate"])
 CHANNELS = 1
 SENDING_RATE = 2  # Hz
@@ -95,8 +103,8 @@ def callback(
 def recorder(data_queue, sample_counter):
     logger = setup_logging()
     ntp_offset = get_ntp_offset()
-    initial_time = int((time.time_ns() + ntp_offset * 1e9))
-    ns_between_messages = int(1e9 / SENDING_RATE)
+    initial_time = int((time.time_ns() + ntp_offset * TP_FACTOR))
+    ns_between_messages = int(TP_FACTOR / SENDING_RATE)
     callback_with_queue = partial(
         callback,
         data_queue=data_queue,
@@ -137,7 +145,7 @@ def sender(data_queue, config):
             except multiprocessing.queues.Empty:
                 continue
 
-            current_timestamp = int(time.time() * 1e9)
+            current_timestamp = int(time.time() * TP_FACTOR)
             drift = current_timestamp - timestamp
             logger.debug(f"Timestamp drift: {drift} ns")
 
@@ -148,17 +156,17 @@ def sender(data_queue, config):
             prev_timestamp = timestamp
 
             np_data = np.frombuffer(data, dtype=np.int16).astype(float)
-            
+
             audio_data = {
                 "data_type": "audio_chunk",
-                "data": np_data.tolist(),  # convert NumPy array to list
+                "data": np_data.tolist(),
                 "metadata": {
                     "sample_rate": RATE,
                     "bit_depth": BIT_DEPTH,
                 },
                 "timestamp": timestamp,
+                "time_precision": TIME_PRECISION,
             }
-
 
             processed_data_list = signal_processor.process(audio_data)
 
@@ -172,6 +180,7 @@ def sender(data_queue, config):
                         "units": processed_data["metadata"]["units"],
                     },
                     "timestamp": processed_data["timestamp"],
+                    "time_precision": TIME_PRECISION
                 }
 
                 telemetry.send_data(json_data)

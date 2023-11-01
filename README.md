@@ -18,3 +18,14 @@ Use this to create a new password for greylog:
 
 echo -n yourpassword | shasum -a 256
 
+
+
+
+TODO:
+Support mutiple fields?
+
+
+
+
+
+

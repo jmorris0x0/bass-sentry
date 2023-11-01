@@ -70,7 +70,7 @@ class SignalProcessor:
 
 class DbfsMeasurement:
     def process(self, data):
-        bit_depth = data["metadata"]["bit_depth"]  # Get bit_depth from data dictionary
+        bit_depth = data["metadata"]["bit_depth"]
         rms_val = self.rms(data["data"])
         db_val = self.rms_to_db(rms_val, bit_depth)
         processed_data = {
