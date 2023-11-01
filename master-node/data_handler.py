@@ -30,6 +30,11 @@ class DataHandler:
         }
         self.instances = {}
 
+
+
+
+
+
     def process_data(self, station_id: str, data_type: str, data: Dict[str, Any]):
         logger.debug(f"Received data: station_id={station_id}, data_type={data_type}, data={data}")
         
@@ -62,24 +67,29 @@ class DataHandler:
 
     def create_point(self, data_type: str, data: Dict[str, Any], processed_data: Any) -> Point:
         if data_type == "scalar":
-            point = Point("sensor_data")
-            point.tag("station_id", data["station_id"])
-
-            timestamp = data["timestamp"]
-            time_precision = data["time_precision"]
+            point = Point(data.get("metadata", {}).get("units", "sensor_data"))
+            point.tag("location", data.get("metadata", {}).get("location", ""))
+            
+            timestamp = data.get("timestamp", 0)
+            time_precision = data.get("time_precision", "s")
             write_precision = PRECISION_MAP.get(time_precision)
             if write_precision is None:
                 raise ValueError(f"Unknown time precision: {time_precision}")
             point.time(timestamp, write_precision)
-
+            
+            # Create the 'band' tag
+            if "filter_low" in data.get("metadata", {}) and "filter_high" in data.get("metadata", {}):
+                band = f"{data['metadata']['filter_low']}-{data['metadata']['filter_high']}"
+            else:
+                band = "full"
+            point.tag("band", band)
+            
             tags = data.get("metadata", {}).get("tags", [])
             for tag in tags:
                 point.tag("tag", tag)
-
+            
             value = processed_data  # This should be a float as per your data schema
-            units = data.get("metadata", {}).get("units")
-            point.field(units, value)
-
+            point.field("value", value)
         else:
             # Handle other data types accordingly
             pass
