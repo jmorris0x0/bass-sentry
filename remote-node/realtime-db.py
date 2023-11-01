@@ -14,7 +14,6 @@ import ntplib
 import sounddevice as sd
 from scipy.signal import fftconvolve
 from telemetry_sender import TelemetrySender
-
 from processors import SignalProcessor
 
 
@@ -33,10 +32,10 @@ DATA_TYPE_MAPPING = {
 }
 FORMAT = DATA_TYPE_MAPPING[BIT_DEPTH]
 TP_FACTORS = {
-    'ns': 1,
-    'us': 1e3,
-    'ms': 1e6,
-    's': 1e9,
+    'ns': 1e9,
+    'us': 1e6,
+    'ms': 1e3,
+    's': 1
 }
 TIME_PRECISION = 'ns'
 TP_FACTOR = TP_FACTORS[TIME_PRECISION]

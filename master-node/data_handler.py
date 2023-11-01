@@ -1,12 +1,23 @@
+import json
 import logging
 import jsonschema
+from jsonschema import validate
+from jsonschema.exceptions import ValidationError
 from typing import Dict, Any, List
 import numpy as np
+import hashlib
 from influxdb_client import Point, WritePrecision
 from scipy.stats import pearsonr
 from scipy.fftpack import fft, ifft
 
 logger = logging.getLogger(__name__)
+
+PRECISION_MAP = {
+    "ns": WritePrecision.NS,
+    "us": WritePrecision.US,
+    "ms": WritePrecision.MS,
+    "s": WritePrecision.S,
+}
 
 
 class DataHandler:
@@ -19,24 +30,72 @@ class DataHandler:
         }
         self.instances = {}
 
-    def process_data(
-        self, station_id: str, data_type: str, data: Dict[str, Any]
-    ) -> Point:
+    def process_data(self, station_id: str, data_type: str, data: Dict[str, Any]):
+        logger.debug(f"Received data: station_id={station_id}, data_type={data_type}, data={data}")
+        
         if data_type not in self.processors:
             logger.warning(f"Unknown data type: {data_type}")
             return None
 
         processor_class = self.processors[data_type]
-        instance_key = (station_id, data_type)
+        instance_id = self.get_instance_id(station_id, data["metadata"], processor_class)
 
-        if instance_key not in self.instances:
+        if instance_id not in self.instances:
             logger.info(
-                f"Creating new processor instance for station {station_id} and data type {data_type}"
+                f"Creating new processor instance for station {station_id} with instance ID {instance_id}"
             )
-            self.instances[instance_key] = processor_class()
+            self.instances[instance_id] = processor_class()
 
-        processor_instance = self.instances[instance_key]
-        return processor_instance.process(data)
+        processor_instance = self.instances[instance_id]
+        processed_data = processor_instance.process(data)
+        
+        if processed_data is None:
+            logger.debug(f"Processor instance for station_id={station_id}, instance_id={instance_id} returned None")
+            return None
+
+        point = self.create_point(data_type, data, processed_data)
+        if point is not None:
+            return point
+        else:
+            return None
+
+
+    def create_point(self, data_type: str, data: Dict[str, Any], processed_data: Any) -> Point:
+        if data_type == "scalar":
+            point = Point("sensor_data")
+            point.tag("station_id", data["station_id"])
+
+            timestamp = data["timestamp"]
+            time_precision = data["time_precision"]
+            write_precision = PRECISION_MAP.get(time_precision)
+            if write_precision is None:
+                raise ValueError(f"Unknown time precision: {time_precision}")
+            point.time(timestamp, write_precision)
+
+            tags = data.get("metadata", {}).get("tags", [])
+            for tag in tags:
+                point.tag("tag", tag)
+
+            value = processed_data  # This should be a float as per your data schema
+            units = data.get("metadata", {}).get("units")
+            point.field(units, value)
+
+        else:
+            # Handle other data types accordingly
+            pass
+
+        logger.debug(f"Created Point object: {point}")
+        return point
+
+
+    def get_instance_id(self, station_id: str, metadata: Dict[str, Any], processor_class: type) -> str:
+        class_name = processor_class.__name__
+        metadata_str = json.dumps(metadata, sort_keys=True)
+        data_to_hash = f"{station_id}{class_name}{metadata_str}"
+        hash_obj = hashlib.md5(data_to_hash.encode())
+        instance_id = f"{station_id}-{class_name}-{hash_obj.hexdigest()}"
+        logger.debug(f"Calculated instance ID: station_id={station_id}, metadata={metadata}, instance_id={instance_id}")
+        return instance_id
 
 
 class DataProcessor:
@@ -51,58 +110,44 @@ class ScalarTS(DataProcessor):
     schema = {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
-        "required": ["station_id", "data_type", "fields"],
+        "required": ["data_type", "timestamp", "time_precision", "data", "metadata"],
         "properties": {
-            "station_id": {"type": "string"},
-            "data_type": {"type": "string"},
+            "data_type": {"type": "string", "enum": ["audio_chunk", "scalar"]},
             "timestamp": {"type": "integer"},
             "time_precision": {
                 "type": "string",
-                "enum": ["ns", "us", "ms", "s", "m", "h"],
+                "enum": ["ns", "us", "ms", "s"],
             },
-            "tags": {
+            "data": {"type": "number"},
+            "metadata": {
                 "type": "object",
-                "additionalProperties": {"type": "string"},
-            },
-            "fields": {
-                "type": "object",
-                "additionalProperties": {"type": "number"},
+                "properties": {
+                    "sample_rate": {"type": "integer"},
+                    "bit_depth": {"type": "integer"},
+                    "filter_low": {"type": "integer"},
+                    "filter_high": {"type": "integer"},
+                    "units": {"type": "string"},
+                    "tags": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["units"],
             },
         },
     }
-
-    def validate(self, data):
-        try:
-            jsonschema.validate(instance=data, schema=self.schema)
-        except jsonschema.exceptions.ValidationError as e:
-            logger.error(f"Data validation failed: {e}")
-            return False
-        return True
 
     def process(self, json_data):
         if not self.validate(json_data):
             return None
 
-        point = Point("dBFS")
-        point.tag("station_id", json_data["station_id"])
+        value = json_data["data"]
+        return value
 
-        timestamp = json_data.get("timestamp")
-        if timestamp is not None:
-            time_precision = json_data.get("time_precision", WritePrecision.NS)
-            point.time(timestamp, time_precision)
-
-        tags = json_data.get("tags", {})
-        for key, value in tags.items():
-            point.tag(key, value)
-
-        fields = json_data["fields"]
-        for key, value in fields.items():
-            point.field(key, value)
-
-        return point
-
-
-
+    def validate(self, data):
+        try:
+            validate(instance=data, schema=self.schema)
+            return True
+        except ValidationError as e:
+            logger.warning(f"Data validation error: {e}")
+            return False
 
 
 class ChunkToCCStream(DataProcessor):
@@ -177,6 +222,14 @@ class ChunkToStream(DataProcessor):
     def process(self, data):
         # process chunked time-series data into timestamped streams
         return processed_data
+
+
+
+
+
+
+
+
 
 
 # When you have a new data type to process, you'll do the following:

@@ -144,32 +144,35 @@ class DataManager:
                     f"Connected nodes: {', '.join(self.connected_nodes) or 'None'}"
                 )
 
-    def handle_data_point(self, topic, payload):
-        station_id = payload.get("station_id")
-        if station_id is None:
-            logger.error("No station_id provided in the payload")
+
+    def handle_data_point(self, station_id: str, payload: dict):
+        data_type = payload.get('data_type')
+        if data_type is None:
+            logger.error("Payload does not contain 'data_type'")
             return
 
-        data_type = payload.get(
-            "data_type", "scalar_ts"
-        )  # Default to "scalar_ts" if no data_type is provided
+        point = self.data_handler.process_data(station_id, data_type, payload)
+        if point is not None:
+            self.write_to_influxdb(station_id, point)
+        else:
+            logger.warning("DataHandler returned None. Skipping write to InfluxDB.")
 
-        processed_data = self.data_handler.process_data(station_id, data_type, payload)
-        if processed_data is not None:
-            self.write_to_influxdb(topic, processed_data)
 
     def write_errors_callback(self, write_errors):
         for error in write_errors:
             logger.error(f"Failed to write data to InfluxDB. Error: {str(error)}")
 
-    def write_to_influxdb(self, topic, point):
+
+    def write_to_influxdb(self, topic: str, point: Point):
+        logger.debug(f"Preparing to write to InfluxDB: topic='{topic}', payload='{point}'")
         try:
             self.write_api.write(bucket="mybucket", org="myorg", record=point)
-            logger.debug(f"Sent to InfluxDB for topic '{topic}' with payload '{point}'")
+            logger.debug(f"Sent to InfluxDB: topic='{topic}', payload='{point}'")
         except Exception as e:
             logger.error(
-                f"Failed to write data to InfluxDB for topic '{topic}' with payload '{point}'. Error: {str(e)}"
+                f"Failed to write to InfluxDB: topic='{topic}', payload='{point}'. Error: {str(e)}"
             )
+
 
     def handle_connection_status(self, payload):
         node_name = payload.get("node_name")

@@ -21,8 +21,33 @@ echo -n yourpassword | shasum -a 256
 
 
 
+"""
+Data Structure:
+{
+    "data_type": string,  # Either "audio_chunk" or "scalar"
+    "timestamp": int, # Epoch
+    "time_precision": string, # Either ns, us, ms, s
+    "data": list or float,  # np.ndarray for "audio_chunk" and float for "scalar"
+    "metadata": {
+        "sample_rate": int,  # Required if "audio_chunk"
+        "bit_depth": int,  # Required if "audio_chunk"
+        "filter_low": int,  # Optional
+        "filter_high": int,  # Optional
+        "units": str  # Required if "scalar"
+        "tags": list # Optional
+
+    }
+}
+"""
+
+
+
+
 TODO:
+Sometimes the remote node just goes no route to host and won't fix until reboot.
 Support mutiple fields?
+zeroconf ntp:
+https://chat.openai.com/share/823fe7f0-0488-492a-9baa-5d95731e490c
 
 
 

@@ -57,34 +57,34 @@ services:
     ports:
       - "123:123/udp"
 
-  graylog:
-    image: graylog/graylog:5.2.0-rc.2-1
-    volumes:
-      - graylog-data:/usr/share/graylog/data
-      - graylog-log:/usr/share/graylog/log
-    ports:
-      - "9000:9000"
-      - "12201:12201/udp"
-    environment:
-      GRAYLOG_PASSWORD_SECRET: somepasswordpepper
-      # Pass is "greylog-password"
-      GRAYLOG_ROOT_PASSWORD_SHA2: 7af18da763122b0bf251a6477401e593721e2e68e7dba880dbbfee6c40ab8229
-      GRAYLOG_HTTP_EXTERNAL_URI: http://127.0.0.1:9000/
-      GRAYLOG_ELASTICSEARCH_HOSTS: http://elasticsearch:9200
-      GRAYLOG_MONGODB_URI: mongodb://mongo:27017/graylog
-    depends_on:
-      - mongo
-      - elasticsearch
-
-  mongo:
-    image: mongo:latest
-    volumes:
-      - mongo-data:/data/db
-
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.0
-    environment:
-      - discovery.type=single-node
+#  graylog:
+#    image: graylog/graylog:5.2.0-rc.2-1
+#    volumes:
+#      - graylog-data:/usr/share/graylog/data
+#      - graylog-log:/usr/share/graylog/log
+#    ports:
+#      - "9000:9000"
+#      - "12201:12201/udp"
+#    environment:
+#      GRAYLOG_PASSWORD_SECRET: somepasswordpepper
+#      # Pass is "greylog-password"
+#      GRAYLOG_ROOT_PASSWORD_SHA2: 7af18da763122b0bf251a6477401e593721e2e68e7dba880dbbfee6c40ab8229
+#      GRAYLOG_HTTP_EXTERNAL_URI: http://127.0.0.1:9000/
+#      GRAYLOG_ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+#      GRAYLOG_MONGODB_URI: mongodb://mongo:27017/graylog
+#    depends_on:
+#      - mongo
+#      - elasticsearch
+#
+#  mongo:
+#    image: mongo:latest
+#    volumes:
+#      - mongo-data:/data/db
+#
+#  elasticsearch:
+#    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.0
+#    environment:
+#      - discovery.type=single-node
 
 volumes:
   influxdb-data:
