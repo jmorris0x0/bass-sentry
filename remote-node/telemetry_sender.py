@@ -82,7 +82,6 @@ class MQTTHandler:
         logger.info(f"Disconnected with result code {rc}. Trying to reconnect...")
         self.reconnect()
 
-
     def reconnect(self):
         delay = self.reconnect_delay
         max_delay = 10  # maximum delay of 60 seconds
@@ -130,7 +129,6 @@ class MQTTHandler:
         self.client.loop_start()
         self.publisher_thread = threading.Thread(target=self.publisher)
         self.publisher_thread.start()
-
 
     def stop(self):
         self.client.loop_stop()

@@ -144,9 +144,8 @@ class DataManager:
                     f"Connected nodes: {', '.join(self.connected_nodes) or 'None'}"
                 )
 
-
     def handle_data_point(self, station_id: str, payload: dict):
-        data_type = payload.get('data_type')
+        data_type = payload.get("data_type")
         if data_type is None:
             logger.error("Payload does not contain 'data_type'")
             return
@@ -157,14 +156,14 @@ class DataManager:
         else:
             logger.warning("DataHandler returned None. Skipping write to InfluxDB.")
 
-
     def write_errors_callback(self, write_errors):
         for error in write_errors:
             logger.error(f"Failed to write data to InfluxDB. Error: {str(error)}")
 
-
     def write_to_influxdb(self, topic: str, point: Point):
-        logger.debug(f"Preparing to write to InfluxDB: topic='{topic}', payload='{point}'")
+        logger.debug(
+            f"Preparing to write to InfluxDB: topic='{topic}', payload='{point}'"
+        )
         try:
             self.write_api.write(bucket="mybucket", org="myorg", record=point)
             logger.debug(f"Sent to InfluxDB: topic='{topic}', payload='{point}'")
@@ -172,7 +171,6 @@ class DataManager:
             logger.error(
                 f"Failed to write to InfluxDB: topic='{topic}', payload='{point}'. Error: {str(e)}"
             )
-
 
     def handle_connection_status(self, payload):
         node_name = payload.get("node_name")

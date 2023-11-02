@@ -24,21 +24,25 @@ class DataHandler:
     def __init__(self):
         self.processors = {
             "scalar": ScalarTS,
-            #"chunk_to_scalar": ChunkToScalar,
-            #"chunk_to_stream": ChunkToStream,
+            # "chunk_to_scalar": ChunkToScalar,
+            # "chunk_to_stream": ChunkToStream,
             "audio_chunk": ChunkToCCStream,
         }
         self.instances = {}
 
     def process_data(self, station_id: str, data_type: str, data: Dict[str, Any]):
-        logger.debug(f"Received data: station_id={station_id}, data_type={data_type}, data={data}")
-        
+        logger.debug(
+            f"Received data: station_id={station_id}, data_type={data_type}, data={data}"
+        )
+
         if data_type not in self.processors:
             logger.warning(f"Unknown data type: {data_type}")
             return None
 
         processor_class = self.processors[data_type]
-        instance_id = self.get_instance_id(station_id, data["metadata"], processor_class)
+        instance_id = self.get_instance_id(
+            station_id, data["metadata"], processor_class
+        )
 
         if instance_id not in self.instances:
             logger.info(
@@ -48,9 +52,11 @@ class DataHandler:
 
         processor_instance = self.instances[instance_id]
         processed_data = processor_instance.process(data)
-        
+
         if processed_data is None:
-            logger.debug(f"Processor instance for station_id={station_id}, instance_id={instance_id} returned None")
+            logger.debug(
+                f"Processor instance for station_id={station_id}, instance_id={instance_id} returned None"
+            )
             return None
 
         point = self.create_point(data_type, data, processed_data)
@@ -59,47 +65,59 @@ class DataHandler:
         else:
             return None
 
-
-    def create_point(self, data_type: str, data: Dict[str, Any], processed_data: Any) -> Point:
+    def create_point(
+        self, data_type: str, data: Dict[str, Any], processed_data: Any
+    ) -> List[Point]:
+        points = []
         if data_type == "scalar":
             point = Point(data.get("metadata", {}).get("units", "sensor_data"))
             point.tag("location", data.get("metadata", {}).get("location", ""))
-            
+
             timestamp = data.get("timestamp", 0)
             time_precision = data.get("time_precision", "s")
             write_precision = PRECISION_MAP.get(time_precision)
             if write_precision is None:
                 raise ValueError(f"Unknown time precision: {time_precision}")
             point.time(timestamp, write_precision)
-            
+
             # Create the 'band' tag
-            if "filter_low" in data.get("metadata", {}) and "filter_high" in data.get("metadata", {}):
+            if "filter_low" in data.get("metadata", {}) and "filter_high" in data.get(
+                "metadata", {}
+            ):
                 band = f"{data['metadata']['filter_low']}-{data['metadata']['filter_high']}Hz"
             else:
                 band = "full"
             point.tag("band", band)
-            
+
             tags = data.get("metadata", {}).get("tags", [])
             for tag in tags:
                 point.tag("tag", tag)
-            
+
             value = processed_data  # This should be a float as per your data schema
             point.field("value", value)
-        else:
-            # Handle other data types accordingly
-            pass
+            points.append(point)
+        elif data_type == "audio_chunk":
+            for remote_id, db in processed_data:
+                point = Point("cross_correlation")
+                point.tag("remote_id", remote_id)
+                # ... (add other tags and fields as needed)
+                point.field("db", db)
+                points.append(point)
 
-        logger.debug(f"Created Point object: {point}")
-        return point
+        logger.debug(f"Created Point objects: {points}")
+        return points
 
-
-    def get_instance_id(self, station_id: str, metadata: Dict[str, Any], processor_class: type) -> str:
+    def get_instance_id(
+        self, station_id: str, metadata: Dict[str, Any], processor_class: type
+    ) -> str:
         class_name = processor_class.__name__
         metadata_str = json.dumps(metadata, sort_keys=True)
         data_to_hash = f"{station_id}{class_name}{metadata_str}"
         hash_obj = hashlib.md5(data_to_hash.encode())
         instance_id = f"{station_id}-{class_name}-{hash_obj.hexdigest()}"
-        logger.debug(f"Calculated instance ID: station_id={station_id}, metadata={metadata}, instance_id={instance_id}")
+        logger.debug(
+            f"Calculated instance ID: station_id={station_id}, metadata={metadata}, instance_id={instance_id}"
+        )
         return instance_id
 
 
@@ -174,7 +192,7 @@ class ChunkToCCStream(DataProcessor):
         max_buffer_size = self.BUFFER_SECONDS * sample_rate // chunk_size
 
         tags = metadata.get("tags", [])
-    
+
         if "reference" in tags:
             self.process_reference_stream(data, max_buffer_size)
         else:
@@ -185,29 +203,42 @@ class ChunkToCCStream(DataProcessor):
                 ref_timestamps, ref_audio_data = self.reference_stream
                 remote_timestamps, remote_audio_data = remote_stream
                 common_timestamps = np.intersect1d(ref_timestamps, remote_timestamps)
-                
-                if len(common_timestamps) > 0:
-                    ref_audio_data_aligned = ref_audio_data[np.isin(ref_timestamps, common_timestamps)]
-                    remote_audio_data_aligned = remote_audio_data[np.isin(remote_timestamps, common_timestamps)]
-                    if ref_audio_data_aligned.size > 0 and remote_audio_data_aligned.size > 0:
-                        db = self.cross_correlate(ref_audio_data_aligned, remote_audio_data_aligned, sample_rate)
-                        return db
 
+                if len(common_timestamps) > 0:
+                    ref_audio_data_aligned = ref_audio_data[
+                        np.isin(ref_timestamps, common_timestamps)
+                    ]
+                    remote_audio_data_aligned = remote_audio_data[
+                        np.isin(remote_timestamps, common_timestamps)
+                    ]
+                    if (
+                        ref_audio_data_aligned.size > 0
+                        and remote_audio_data_aligned.size > 0
+                    ):
+                        db = self.cross_correlate(
+                            ref_audio_data_aligned,
+                            remote_audio_data_aligned,
+                            sample_rate,
+                        )
+                        return db
 
     def process_reference_stream(self, data: Dict[str, Any], max_buffer_size: int):
         buffer = self.buffers.setdefault("reference", [])
         timestamp = data["timestamp"]
         audio_data = data["data"]
         buffer.append((timestamp, audio_data))
-        
+
         buffer.sort(key=lambda x: x[0])  # Sort by timestamp
-        
+
         if len(buffer) > max_buffer_size:
             buffer.pop(0)  # Evict oldest data chunk
-        
+
         if buffer:
             timestamps, audio_data_chunks = zip(*buffer)
-            self.reference_stream = (np.array(timestamps), np.concatenate(audio_data_chunks))
+            self.reference_stream = (
+                np.array(timestamps),
+                np.concatenate(audio_data_chunks),
+            )
 
     def process_remote_stream(self, data: Dict[str, Any], max_buffer_size: int):
         remote_id = data["remote_id"]
@@ -215,31 +246,37 @@ class ChunkToCCStream(DataProcessor):
         timestamp = data["timestamp"]
         audio_data = data["data"]
         buffer.append((timestamp, audio_data))
-        
+
         buffer.sort(key=lambda x: x[0])  # Sort by timestamp
-        
+
         if len(buffer) > max_buffer_size:
             buffer.pop(0)  # Evict oldest data chunk
-        
+
         if buffer:
             timestamps, audio_data_chunks = zip(*buffer)
-            self.remote_streams[remote_id] = (np.array(timestamps), np.concatenate(audio_data_chunks))
-
+            self.remote_streams[remote_id] = (
+                np.array(timestamps),
+                np.concatenate(audio_data_chunks),
+            )
 
     def cross_correlate(self, ref_stream, remote_stream, sample_rate):
         ref_timestamps, ref_audio_data = ref_stream
         remote_timestamps, remote_audio_data = remote_stream
 
-
         # Align timestamps.
         # This is necessary because the chunks may not begin at the same time.
         common_timestamps = np.intersect1d(ref_timestamps, remote_timestamps)
-        ref_audio_data_aligned = ref_audio_data[np.isin(ref_timestamps, common_timestamps)]
-        remote_audio_data_aligned = remote_audio_data[np.isin(remote_timestamps, common_timestamps)]
+        ref_audio_data_aligned = ref_audio_data[
+            np.isin(ref_timestamps, common_timestamps)
+        ]
+        remote_audio_data_aligned = remote_audio_data[
+            np.isin(remote_timestamps, common_timestamps)
+        ]
 
-        db, tau = self.rcc(ref_audio_data_aligned, remote_audio_data_aligned, sample_rate)
+        db, tau = self.rcc(
+            ref_audio_data_aligned, remote_audio_data_aligned, sample_rate
+        )
         return db
-       
 
     def rcc(self, sig1, sig2, fs, ref_amp=10000.0):
         if len(sig1) != len(sig2):
@@ -263,25 +300,6 @@ class ChunkToCCStream(DataProcessor):
         return db, tau
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class ChunkToScalar(DataProcessor):
     def process(self, data):
         # process chunked time-series data into a scalar value
@@ -292,14 +310,6 @@ class ChunkToStream(DataProcessor):
     def process(self, data):
         # process chunked time-series data into timestamped streams
         return processed_data
-
-
-
-
-
-
-
-
 
 
 # When you have a new data type to process, you'll do the following:

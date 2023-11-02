@@ -34,7 +34,9 @@ class DAGProcessor:
         with ThreadPoolExecutor() as executor:
             futures = {}
             for next_step_id in next_steps:
-                next_data = deepcopy(processed_data) if len(next_steps) > 1 else processed_data
+                next_data = (
+                    deepcopy(processed_data) if len(next_steps) > 1 else processed_data
+                )
                 future = executor.submit(self.process, next_data, next_step_id)
                 futures[future] = next_step_id
 
@@ -88,7 +90,7 @@ class DbfsMeasurement:
 
     @staticmethod
     def rms(data):
-        return np.sqrt(np.mean(np.array(data)**2))
+        return np.sqrt(np.mean(np.array(data) ** 2))
 
     def rms_to_db(self, rms_val, bit_depth):
         if rms_val == 0:
@@ -104,7 +106,9 @@ class BandpassFilter:
         self.last_overlap = np.array([])
 
     def process(self, audio_data):
-        sample_rate = audio_data["metadata"]["sample_rate"]  # Get sample rate from the input audio data
+        sample_rate = audio_data["metadata"][
+            "sample_rate"
+        ]  # Get sample rate from the input audio data
         processed_data = self.overlap_save(audio_data["data"], sample_rate)
         audio_data["data_type"] = "audio_chunk"
         audio_data["data"] = processed_data  # Keep it as a NumPy array
@@ -125,7 +129,9 @@ class BandpassFilter:
         mask = (frequencies > self.low_cut) & (frequencies < self.high_cut)
         f_signal[~mask] = 0
         filtered_signal = np.fft.ifft(f_signal)
-        output[:segment_size] = np.real(filtered_signal[:segment_size])  # Explicitly take the real part
+        output[:segment_size] = np.real(
+            filtered_signal[:segment_size]
+        )  # Explicitly take the real part
 
         self.last_overlap = signal[-overlap:]
         return output
@@ -149,21 +155,23 @@ class Resample:
         if self.old_sample_rate is None:
             self.old_sample_rate = data["metadata"]["sample_rate"]
 
-       # Log the length of the chunk going in
-        #logger.debug(f"Chunk length going in: {len(data['data'])} samples")
+        # Log the length of the chunk going in
+        # logger.debug(f"Chunk length going in: {len(data['data'])} samples")
 
         # Add additional debug logging
-        #logger.debug(f"Buffer length: {len(self.buffer)}")
-        #logger.debug(f"Old sample rate: {self.old_sample_rate}")
-        #logger.debug(f"New sample rate: {self.new_sample_rate}")
+        # logger.debug(f"Buffer length: {len(self.buffer)}")
+        # logger.debug(f"Old sample rate: {self.old_sample_rate}")
+        # logger.debug(f"New sample rate: {self.new_sample_rate}")
 
         # Calculate the number of samples in the resampled data
-        num_samples = int(len(self.buffer) * self.new_sample_rate / self.old_sample_rate)
+        num_samples = int(
+            len(self.buffer) * self.new_sample_rate / self.old_sample_rate
+        )
 
         # Resample the data
         resampled_data = resample(np.array(self.buffer), num_samples)
 
-        #logger.debug(f"Chunk length going out: {len(resampled_data)} samples")
+        # logger.debug(f"Chunk length going out: {len(resampled_data)} samples")
 
         # Update the data dictionary
         data["data_type"] = "audio_chunk"
@@ -178,8 +186,7 @@ class MetadataTagger:
         self.tag = tag
 
     def process(self, data):
-        if 'tags' not in data['metadata']:
-            data['metadata']['tags'] = []
-        data['metadata']['tags'].append(self.tag)
+        if "tags" not in data["metadata"]:
+            data["metadata"]["tags"] = []
+        data["metadata"]["tags"].append(self.tag)
         return data
-

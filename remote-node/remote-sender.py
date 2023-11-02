@@ -20,19 +20,20 @@ from processors import SignalProcessor
 
 def get_input_device():
     devices = sd.query_devices()
-    #logger.info("Found audio devices:\n{}".format(devices))
+    # logger.info("Found audio devices:\n{}".format(devices))
 
     if platform.system() == "Linux":  # Assume Raspberry Pi
         for i, d in enumerate(devices):
-            #logger.debug(f"Device {i}: {d['name']}")
+            # logger.debug(f"Device {i}: {d['name']}")
             if "USB Audio CODEC" in d["name"]:
-                #logger.debug(f"Found USB Audio CODEC at device {i}.")
+                # logger.debug(f"Found USB Audio CODEC at device {i}.")
                 return d
-        #logger.debug("USB Audio CODEC not found. Using default input device.")
+        # logger.debug("USB Audio CODEC not found. Using default input device.")
         return sd.query_devices(kind="input")  # Use the default device
     else:  # Use the default device
-        #logger.debug("Not on Linux, using default input device.")
+        # logger.debug("Not on Linux, using default input device.")
         return sd.query_devices(kind="input")
+
 
 device_info = get_input_device()
 
@@ -45,13 +46,8 @@ DATA_TYPE_MAPPING = {
     64: np.int64,
 }
 FORMAT = DATA_TYPE_MAPPING[BIT_DEPTH]
-TP_FACTORS = {
-    'ns': 1e9,
-    'us': 1e6,
-    'ms': 1e3,
-    's': 1
-}
-TIME_PRECISION = 'ns'
+TP_FACTORS = {"ns": 1e9, "us": 1e6, "ms": 1e3, "s": 1}
+TIME_PRECISION = "ns"
 TP_FACTOR = TP_FACTORS[TIME_PRECISION]
 RATE = int(device_info["default_samplerate"])
 INPUT_DEVICE = int(device_info["index"])
@@ -61,8 +57,10 @@ CHUNK = int(RATE / SENDING_RATE)
 
 
 def setup_logging():
-    logging.basicConfig(level=logging.INFO,
-        format='%(name)s - %(levelname)s - %(message)s - Line %(lineno)d')
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(name)s - %(levelname)s - %(message)s - Line %(lineno)d",
+    )
     logger = logging.getLogger(__name__)
     return logger
 
@@ -190,9 +188,8 @@ def sender(data_queue, config):
 
             processed_data_list = signal_processor.process(audio_data)
 
-
             for processed_data in processed_data_list:
-                processed_data['station_id'] = telemetry.unit_name
+                processed_data["station_id"] = telemetry.unit_name
                 if type(processed_data["data"]) == np.ndarray:
                     processed_data["data"] = processed_data["data"].tolist()
                 logger.debug("Processed data: %s", pformat(processed_data))
