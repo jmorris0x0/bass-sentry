@@ -204,23 +204,27 @@ class ChunkToCCStream(DataProcessor):
                 remote_timestamps, remote_audio_data = remote_stream
                 common_timestamps = np.intersect1d(ref_timestamps, remote_timestamps)
 
-                if len(common_timestamps) > 0:
-                    ref_audio_data_aligned = ref_audio_data[
-                        np.isin(ref_timestamps, common_timestamps)
-                    ]
-                    remote_audio_data_aligned = remote_audio_data[
-                        np.isin(remote_timestamps, common_timestamps)
-                    ]
-                    if (
-                        ref_audio_data_aligned.size > 0
-                        and remote_audio_data_aligned.size > 0
-                    ):
-                        db = self.cross_correlate(
-                            ref_audio_data_aligned,
-                            remote_audio_data_aligned,
-                            sample_rate,
-                        )
-                        return db
+                if len(common_timestamps) > 1:
+                    timestamp_diffs = np.diff(common_timestamps)
+                    expected_diff = 1 / sample_rate
+                    if np.all(np.isclose(timestamp_diffs, expected_diff, atol=1e-6)):
+                        ref_audio_data_aligned = ref_audio_data[
+                            np.isin(ref_timestamps, common_timestamps)
+                        ]
+                        remote_audio_data_aligned = remote_audio_data[
+                            np.isin(remote_timestamps, common_timestamps)
+                        ]
+
+                        if (
+                            ref_audio_data_aligned.size > 0
+                            and remote_audio_data_aligned.size > 0
+                        ):
+                            db = self.cross_correlate(
+                                ref_audio_data_aligned,
+                                remote_audio_data_aligned,
+                                sample_rate,
+                            )
+                            return db
 
     def process_reference_stream(self, data: Dict[str, Any], max_buffer_size: int):
         buffer = self.buffers.setdefault("reference", [])
