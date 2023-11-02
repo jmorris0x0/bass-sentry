@@ -17,7 +17,9 @@ from telemetry_sender import TelemetrySender
 from processors import SignalProcessor
 
 
+
 default_device_info = sd.query_devices(kind="input")
+
 subtype = default_device_info.get('subtype', 'PCM_16')
 if 'PCM' in subtype:
     BIT_DEPTH = int(''.join(filter(str.isdigit, subtype)))
