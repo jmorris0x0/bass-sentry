@@ -185,7 +185,7 @@ class TelemetrySender:
         self.handler.start()
 
     def send_data(self, data):
-        logger.info(f"Sending data: {data}")
+        logger.debug(f"Sending data: {data}")
         self.handler.publish_message(data)
 
     def stop(self):
