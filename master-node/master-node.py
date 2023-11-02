@@ -5,7 +5,9 @@ import os
 import time
 from data_manager import DataManager
 
-logging.basicConfig(level=logging.DEBUG)
+
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(name)s - %(levelname)s - %(message)s - Line %(lineno)d')
 logger = logging.getLogger(__name__)
 
 

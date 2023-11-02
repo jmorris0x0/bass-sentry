@@ -24,16 +24,11 @@ class DataHandler:
     def __init__(self):
         self.processors = {
             "scalar": ScalarTS,
-            "chunk_to_scalar": ChunkToScalar,
-            "chunk_to_stream": ChunkToStream,
-            "chunk_to_cc_stream": ChunkToCCStream,
+            #"chunk_to_scalar": ChunkToScalar,
+            #"chunk_to_stream": ChunkToStream,
+            "audio_chunk": ChunkToCCStream,
         }
         self.instances = {}
-
-
-
-
-
 
     def process_data(self, station_id: str, data_type: str, data: Dict[str, Any]):
         logger.debug(f"Received data: station_id={station_id}, data_type={data_type}, data={data}")
@@ -173,7 +168,7 @@ class ChunkToCCStream(DataProcessor):
         elif stream_type == "remote":
             self.process_remote_stream(data)
         else:
-            logger.error("Unknown stream type: {}".format(stream_type))
+            logger.error("Unknown cross-correlation stream type: {}".format(stream_type))
             return None
 
         if self.reference_stream is not None:
@@ -220,6 +215,25 @@ class ChunkToCCStream(DataProcessor):
         r, _ = pearsonr(sig1, sig2)
 
         return db, tau, _, _
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 class ChunkToScalar(DataProcessor):
