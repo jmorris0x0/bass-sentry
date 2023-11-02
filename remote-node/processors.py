@@ -76,6 +76,7 @@ class DbfsMeasurement:
         processed_data = {
             "data_type": "scalar",
             "timestamp": data["timestamp"],
+            "time_precision": data["time_precision"],
             "data": db_val,
             "metadata": {
                 "units": "dBFS",

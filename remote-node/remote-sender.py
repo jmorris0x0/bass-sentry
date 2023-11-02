@@ -8,7 +8,7 @@ import time
 from functools import partial
 import functools
 
-from pprint import pprint
+from pprint import pprint, pformat
 import numpy as np
 import ntplib
 import sounddevice as sd
@@ -162,32 +162,35 @@ def sender(data_queue, config):
             audio_data = {
                 "data_type": "audio_chunk",
                 "data": np_data.tolist(),
+                "timestamp": timestamp,
+                "time_precision": TIME_PRECISION,
                 "metadata": {
                     "sample_rate": RATE,
                     "bit_depth": BIT_DEPTH,
-                    "location": location,  # Include location in metadata
+                    "location": location,
                 },
-                "timestamp": timestamp,
-                "time_precision": TIME_PRECISION,
             }
 
             processed_data_list = signal_processor.process(audio_data)
 
             for processed_data in processed_data_list:
-                pprint(processed_data)
-                json_data = {
-                    "data": processed_data["data"],
-                    "station_id": telemetry.unit_name,
-                    "data_type": processed_data["data_type"],
-                    "metadata": {
-                        "units": processed_data["metadata"]["units"],
-                        "location": location,  # Include location in metadata
-                    },
-                    "timestamp": processed_data["timestamp"],
-                    "time_precision": TIME_PRECISION,
-                }
 
-                telemetry.send_data(json_data)
+                processed_data['station_id'] = telemetry.unit_name
+                #processed_data['time_precision'] = TIME_PRECISION
+
+                logger.debug("Processed data: %s", pformat(processed_data))
+#                json_data = {
+#                    "data": processed_data["data"],
+#                    "station_id": telemetry.unit_name,
+#                    "data_type": processed_data["data_type"],
+#                    "metadata": {
+#                        "units": processed_data["metadata"]["units"],
+#                        "location": location,  # Include location in metadata
+#                    },
+#                    "timestamp": processed_data["timestamp"],
+#                    "time_precision": TIME_PRECISION,
+#                }
+                telemetry.send_data(processed_data)
 
     except KeyboardInterrupt:
         telemetry.stop()
