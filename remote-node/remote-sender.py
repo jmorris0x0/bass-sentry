@@ -7,6 +7,7 @@ import sys
 import time
 from functools import partial
 import functools
+import platform
 
 from pprint import pprint, pformat
 import numpy as np
@@ -17,14 +18,25 @@ from telemetry_sender import TelemetrySender
 from processors import SignalProcessor
 
 
+def get_input_device():
+    devices = sd.query_devices()
+    #logger.info("Found audio devices:\n{}".format(devices))
 
-default_device_info = sd.query_devices(kind="input")
+    if platform.system() == "Linux":  # Assume Raspberry Pi
+        for i, d in enumerate(devices):
+            #logger.debug(f"Device {i}: {d['name']}")
+            if "USB Audio CODEC" in d["name"]:
+                #logger.debug(f"Found USB Audio CODEC at device {i}.")
+                return d
+        #logger.debug("USB Audio CODEC not found. Using default input device.")
+        return sd.query_devices(kind="input")  # Use the default device
+    else:  # Use the default device
+        #logger.debug("Not on Linux, using default input device.")
+        return sd.query_devices(kind="input")
 
-subtype = default_device_info.get('subtype', 'PCM_16')
-if 'PCM' in subtype:
-    BIT_DEPTH = int(''.join(filter(str.isdigit, subtype)))
-else:
-    BIT_DEPTH = 16  # Default to 16 if subtype is not PCM
+device_info = get_input_device()
+
+BIT_DEPTH = 16  # Default to 16 if subtype is not PCM
 
 DATA_TYPE_MAPPING = {
     8: np.int8,
@@ -41,7 +53,8 @@ TP_FACTORS = {
 }
 TIME_PRECISION = 'ns'
 TP_FACTOR = TP_FACTORS[TIME_PRECISION]
-RATE = int(default_device_info["default_samplerate"])
+RATE = int(device_info["default_samplerate"])
+INPUT_DEVICE = int(device_info["index"])
 CHANNELS = 1
 SENDING_RATE = 2  # Hz
 CHUNK = int(RATE / SENDING_RATE)
@@ -115,6 +128,7 @@ def recorder(data_queue, sample_counter):
     )
 
     stream = sd.InputStream(
+        device=INPUT_DEVICE,
         callback=callback_with_queue,
         channels=CHANNELS,
         dtype=FORMAT,

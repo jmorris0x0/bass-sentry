@@ -16,7 +16,7 @@ def get_input_device():
             logger.debug(f"Device {i}: {d['name']}")
             if "USB Audio CODEC" in d["name"]:
                 logger.debug(f"Found USB Audio CODEC at device {i}.")
-                return i, d
+                return d
         logger.debug("USB Audio CODEC not found. Using default input device.")
         return sd.query_devices(kind="input")  # Use the default device
     else:  # Use the default device
