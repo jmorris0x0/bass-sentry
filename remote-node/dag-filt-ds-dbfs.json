@@ -1,4 +1,5 @@
 {
+    "location": "dance-cave",
     "steps": {
         "start": {
             "type": "start",

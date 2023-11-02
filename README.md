@@ -48,6 +48,7 @@ Sometimes the remote node just goes no route to host and won't fix until reboot.
 Support mutiple fields?
 zeroconf ntp:
 https://chat.openai.com/share/823fe7f0-0488-492a-9baa-5d95731e490c
+Fix it so that the location comes from the config file and finds its way all to the end.
 
 
 
