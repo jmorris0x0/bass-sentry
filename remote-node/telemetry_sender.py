@@ -82,32 +82,6 @@ class MQTTHandler:
         logger.info(f"Disconnected with result code {rc}. Trying to reconnect...")
         self.reconnect()
 
-    def start(self):
-        connected = False
-        while not connected:
-            try:
-                self.client.connect(self.broker_address)
-                connected = True
-            except ConnectionRefusedError:
-                logger.error(
-                    "Connection refused. Retrying in {} seconds...".format(
-                        self.reconnect_delay
-                    )
-                )
-                time.sleep(self.reconnect_delay)
-            except OSError as e:
-                if e.errno == 65:
-                    logger.error(
-                        "No route to host. Retrying in {} seconds...".format(
-                            self.reconnect_delay
-                        )
-                    )
-                    time.sleep(self.reconnect_delay)
-                else:
-                    raise
-        self.client.loop_start()
-        self.publisher_thread = threading.Thread(target=self.publisher)
-        self.publisher_thread.start()
 
     def reconnect(self):
         delay = self.reconnect_delay
@@ -146,12 +120,17 @@ class MQTTHandler:
                             self.reconnect_delay
                         )
                     )
+                    # Recreate the MQTT client object
+                    self.client = mqtt.Client()
+                    self.client.on_connect = self.on_connect
+                    self.client.on_disconnect = self.on_disconnect
                     time.sleep(self.reconnect_delay)
                 else:
                     raise  # re-raise for other OS errors
         self.client.loop_start()
         self.publisher_thread = threading.Thread(target=self.publisher)
         self.publisher_thread.start()
+
 
     def stop(self):
         self.client.loop_stop()
