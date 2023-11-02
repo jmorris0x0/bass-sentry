@@ -61,7 +61,7 @@ CHUNK = int(RATE / SENDING_RATE)
 
 
 def setup_logging():
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     logger = logging.getLogger(__name__)
     return logger
 
@@ -189,10 +189,11 @@ def sender(data_queue, config):
 
             processed_data_list = signal_processor.process(audio_data)
 
+
             for processed_data in processed_data_list:
-
                 processed_data['station_id'] = telemetry.unit_name
-
+                if type(processed_data["data"]) == np.ndarray:
+                    processed_data["data"] = processed_data["data"].tolist()
                 logger.debug("Processed data: %s", pformat(processed_data))
 
                 telemetry.send_data(processed_data)
