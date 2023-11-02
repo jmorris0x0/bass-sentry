@@ -137,6 +137,9 @@ def sender(data_queue, config):
     # Create an instance of SignalProcessor
     signal_processor = SignalProcessor(config)
 
+    # Extract location from the config
+    location = config.get("location", "")
+
     try:
         while True:
             try:
@@ -162,6 +165,7 @@ def sender(data_queue, config):
                 "metadata": {
                     "sample_rate": RATE,
                     "bit_depth": BIT_DEPTH,
+                    "location": location,  # Include location in metadata
                 },
                 "timestamp": timestamp,
                 "time_precision": TIME_PRECISION,
@@ -177,9 +181,10 @@ def sender(data_queue, config):
                     "data_type": processed_data["data_type"],
                     "metadata": {
                         "units": processed_data["metadata"]["units"],
+                        "location": location,  # Include location in metadata
                     },
                     "timestamp": processed_data["timestamp"],
-                    "time_precision": TIME_PRECISION
+                    "time_precision": TIME_PRECISION,
                 }
 
                 telemetry.send_data(json_data)

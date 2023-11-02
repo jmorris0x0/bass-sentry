@@ -35,6 +35,7 @@ Data Structure:
         "filter_high": int,  # Optional
         "units": str  # Required if "scalar"
         "tags": list # Optional
+        "location": str # Required
 
     }
 }
