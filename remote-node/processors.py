@@ -150,12 +150,12 @@ class Resample:
             self.old_sample_rate = data["metadata"]["sample_rate"]
 
        # Log the length of the chunk going in
-        logger.debug(f"Chunk length going in: {len(data['data'])} samples")
+        #logger.debug(f"Chunk length going in: {len(data['data'])} samples")
 
         # Add additional debug logging
-        logger.debug(f"Buffer length: {len(self.buffer)}")
-        logger.debug(f"Old sample rate: {self.old_sample_rate}")
-        logger.debug(f"New sample rate: {self.new_sample_rate}")
+        #logger.debug(f"Buffer length: {len(self.buffer)}")
+        #logger.debug(f"Old sample rate: {self.old_sample_rate}")
+        #logger.debug(f"New sample rate: {self.new_sample_rate}")
 
         # Calculate the number of samples in the resampled data
         num_samples = int(len(self.buffer) * self.new_sample_rate / self.old_sample_rate)
@@ -163,7 +163,7 @@ class Resample:
         # Resample the data
         resampled_data = resample(np.array(self.buffer), num_samples)
 
-        logger.debug(f"Chunk length going out: {len(resampled_data)} samples")
+        #logger.debug(f"Chunk length going out: {len(resampled_data)} samples")
 
         # Update the data dictionary
         data["data_type"] = "audio_chunk"
