@@ -156,44 +156,90 @@ class ScalarTS(DataProcessor):
 
 
 class ChunkToCCStream(DataProcessor):
-    def __init__(self):
-        self.reference_stream = None  # Buffer for reference stream
-        self.remote_streams = {}  # Dictionary to store buffers for each remote stream
+    BUFFER_SECONDS = 2
 
-    def process(self, data: Dict[str, Any]) -> Point:
+    def __init__(self):
+        self.reference_stream = None
+        self.remote_streams = {}
+        self.buffers = {}
+
+    def process(self, data: Dict[str, Any]):
         station_id = data["station_id"]
-        stream_type = data.get("stream_type")
-        if stream_type == "reference":
-            self.process_reference_stream(data)
-        elif stream_type == "remote":
-            self.process_remote_stream(data)
+        metadata = data.get("metadata", {})
+        sample_rate = metadata.get("sample_rate")
+        if sample_rate is None or sample_rate <= 0:
+            raise ValueError("Invalid sample rate: {}".format(sample_rate))
+
+        chunk_size = len(data["data"])
+        max_buffer_size = self.BUFFER_SECONDS * sample_rate // chunk_size
+
+        tags = metadata.get("tags", [])
+    
+        if "reference" in tags:
+            self.process_reference_stream(data, max_buffer_size)
         else:
-            logger.error("Unknown cross-correlation stream type: {}".format(stream_type))
-            return None
+            self.process_remote_stream(data, max_buffer_size)
 
         if self.reference_stream is not None:
             for remote_id, remote_stream in self.remote_streams.items():
-                db, tau = self.cross_correlate(self.reference_stream, remote_stream)
-                point = Point("CrossCorrelation")
-                point.tag("station_id", station_id)
-                point.tag("remote_id", remote_id)
-                point.field("db", db)
-                point.field("tau", tau)
-                return point
+                ref_timestamps, ref_audio_data = self.reference_stream
+                remote_timestamps, remote_audio_data = remote_stream
+                common_timestamps = np.intersect1d(ref_timestamps, remote_timestamps)
+                
+                if len(common_timestamps) > 0:
+                    ref_audio_data_aligned = ref_audio_data[np.isin(ref_timestamps, common_timestamps)]
+                    remote_audio_data_aligned = remote_audio_data[np.isin(remote_timestamps, common_timestamps)]
+                    if ref_audio_data_aligned.size > 0 and remote_audio_data_aligned.size > 0:
+                        db = self.cross_correlate(ref_audio_data_aligned, remote_audio_data_aligned, sample_rate)
+                        return db
 
-    def process_reference_stream(self, data: Dict[str, Any]):
-        # Logic to handle reference stream data
-        self.reference_stream = data["chunk"]
 
-    def process_remote_stream(self, data: Dict[str, Any]):
-        # Logic to handle remote stream data
+    def process_reference_stream(self, data: Dict[str, Any], max_buffer_size: int):
+        buffer = self.buffers.setdefault("reference", [])
+        timestamp = data["timestamp"]
+        audio_data = data["data"]
+        buffer.append((timestamp, audio_data))
+        
+        buffer.sort(key=lambda x: x[0])  # Sort by timestamp
+        
+        if len(buffer) > max_buffer_size:
+            buffer.pop(0)  # Evict oldest data chunk
+        
+        if buffer:
+            timestamps, audio_data_chunks = zip(*buffer)
+            self.reference_stream = (np.array(timestamps), np.concatenate(audio_data_chunks))
+
+    def process_remote_stream(self, data: Dict[str, Any], max_buffer_size: int):
         remote_id = data["remote_id"]
-        self.remote_streams[remote_id] = data["chunk"]
+        buffer = self.buffers.setdefault(remote_id, [])
+        timestamp = data["timestamp"]
+        audio_data = data["data"]
+        buffer.append((timestamp, audio_data))
+        
+        buffer.sort(key=lambda x: x[0])  # Sort by timestamp
+        
+        if len(buffer) > max_buffer_size:
+            buffer.pop(0)  # Evict oldest data chunk
+        
+        if buffer:
+            timestamps, audio_data_chunks = zip(*buffer)
+            self.remote_streams[remote_id] = (np.array(timestamps), np.concatenate(audio_data_chunks))
 
-    def cross_correlate(self, ref_stream, remote_stream):
-        fs = 44100  # Assume a fixed sampling rate for now
-        db, tau, _, _ = rcc(ref_stream, remote_stream, fs)
-        return db, tau
+
+    def cross_correlate(self, ref_stream, remote_stream, sample_rate):
+        ref_timestamps, ref_audio_data = ref_stream
+        remote_timestamps, remote_audio_data = remote_stream
+
+
+        # Align timestamps.
+        # This is necessary because the chunks may not begin at the same time.
+        common_timestamps = np.intersect1d(ref_timestamps, remote_timestamps)
+        ref_audio_data_aligned = ref_audio_data[np.isin(ref_timestamps, common_timestamps)]
+        remote_audio_data_aligned = remote_audio_data[np.isin(remote_timestamps, common_timestamps)]
+
+        db, tau = self.rcc(ref_audio_data_aligned, remote_audio_data_aligned, sample_rate)
+        return db
+       
 
     def rcc(self, sig1, sig2, fs, ref_amp=10000.0):
         if len(sig1) != len(sig2):
@@ -214,7 +260,7 @@ class ChunkToCCStream(DataProcessor):
 
         r, _ = pearsonr(sig1, sig2)
 
-        return db, tau, _, _
+        return db, tau
 
 
 
