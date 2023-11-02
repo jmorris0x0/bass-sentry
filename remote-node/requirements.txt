@@ -1,0 +1,7 @@
+paho-mqtt
+zeroconf
+numpy
+ntplib
+sounddevice
+scipy
+
