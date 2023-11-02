@@ -79,7 +79,7 @@ class DataHandler:
             
             # Create the 'band' tag
             if "filter_low" in data.get("metadata", {}) and "filter_high" in data.get("metadata", {}):
-                band = f"{data['metadata']['filter_low']}-{data['metadata']['filter_high']}"
+                band = f"{data['metadata']['filter_low']}-{data['metadata']['filter_high']}Hz"
             else:
                 band = "full"
             point.tag("band", band)

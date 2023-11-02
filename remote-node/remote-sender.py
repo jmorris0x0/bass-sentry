@@ -176,20 +176,9 @@ def sender(data_queue, config):
             for processed_data in processed_data_list:
 
                 processed_data['station_id'] = telemetry.unit_name
-                #processed_data['time_precision'] = TIME_PRECISION
 
                 logger.debug("Processed data: %s", pformat(processed_data))
-#                json_data = {
-#                    "data": processed_data["data"],
-#                    "station_id": telemetry.unit_name,
-#                    "data_type": processed_data["data_type"],
-#                    "metadata": {
-#                        "units": processed_data["metadata"]["units"],
-#                        "location": location,  # Include location in metadata
-#                    },
-#                    "timestamp": processed_data["timestamp"],
-#                    "time_precision": TIME_PRECISION,
-#                }
+
                 telemetry.send_data(processed_data)
 
     except KeyboardInterrupt:
