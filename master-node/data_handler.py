@@ -32,7 +32,7 @@ class DataHandler:
 
     def process_data(self, station_id: str, data_type: str, data: Dict[str, Any]):
         logger.debug(
-            f"Received data: station_id={station_id}, data_type={data_type}, data={data}"
+            f"Received data: station_id={station_id}, data_type={data_type}, metadata={data['metadata']}"
         )
 
         if data_type not in self.processors:
@@ -245,7 +245,7 @@ class ChunkToCCStream(DataProcessor):
             )
 
     def process_remote_stream(self, data: Dict[str, Any], max_buffer_size: int):
-        remote_id = data["remote_id"]
+        remote_id = data["station_id"]
         buffer = self.buffers.setdefault(remote_id, [])
         timestamp = data["timestamp"]
         audio_data = data["data"]

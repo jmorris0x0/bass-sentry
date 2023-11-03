@@ -137,7 +137,6 @@ class BandpassFilter:
         self.last_overlap = signal[-overlap:]
         return output
 
-import numpy as np
 
 class GridDecimationResample:
     def __init__(self, new_sample_rate):
@@ -193,6 +192,7 @@ class GridDecimationResample:
         resampled_data = original_samples[closest_indices]
         
         # Update the packet with the resampled data
+        packet["timestamp"] = target_times_ns[0]
         packet["data"] = resampled_data.tolist()
         packet["metadata"]["sample_rate"] = self.new_sample_rate
         
