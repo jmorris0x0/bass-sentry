@@ -138,6 +138,9 @@ class BandpassFilter:
         return output
 
 
+import numpy as np
+import logging
+
 class GridDecimationResample:
     def __init__(self, new_sample_rate):
         logging.debug(f"Initializing with new_sample_rate: {new_sample_rate}")
@@ -146,7 +149,7 @@ class GridDecimationResample:
             raise ValueError(
                 "New sample rate must result in an integer number of nanoseconds per sample"
             )
-        logging.debug("New sample rate is valid.")
+        logging.debug(f"New sample rate is valid.")
         self.new_sample_rate = new_sample_rate
 
     @staticmethod
@@ -159,41 +162,28 @@ class GridDecimationResample:
         data_start_time_ns = packet["timestamp"]
         original_samples = np.array(packet["data"])
 
+        # Ensure original_samples is not empty
         if not len(original_samples):
             raise ValueError("original_samples is empty")
 
         logging.debug(f"Original data_start_time_ns: {data_start_time_ns}")
+
+        # Calculate the sample period in nanoseconds for the desired sample rate
+        sample_period_ns = int(1e9 / self.new_sample_rate)
+
+        # Determine if the data start time is already aligned with the desired sample grid
+        if data_start_time_ns % sample_period_ns == 0:
+            # If already aligned, we use the data start time as is
+            aligned_start_time_ns = data_start_time_ns
+        else:
+            # If not aligned, align to the next sample on the grid
+            aligned_start_time_ns = ((data_start_time_ns // sample_period_ns) + 1) * sample_period_ns
 
         # Create the time series for original sample times
         original_times_ns = (
             np.arange(len(original_samples)) * (1e9 / original_sample_rate)
             + data_start_time_ns
         )
-
-        # Align the start of the target grid with the wallclock second
-        # Find the timestamp at the start of the wallclock second
-        # If data_start_time_ns is less than 1e9 away from the next whole second, align to the current second.
-        # This should align with the new sample rate of 1000Hz (1e9 ns / 1000 samples = 1,000,000 ns/sample)
-        sample_period_ns = int(
-            1e9 / self.new_sample_rate
-        )  # For 1000Hz, this is 1,000,000ns
-
-        # Adjust the alignment to fit the 1000Hz sample rate, ensure it ends with 0
-        if (data_start_time_ns % sample_period_ns) > (
-            sample_period_ns - (1 / original_sample_rate * 1e9)
-        ):
-            aligned_start_time_ns = (data_start_time_ns + sample_period_ns) - (
-                data_start_time_ns % sample_period_ns
-            )
-        else:
-            aligned_start_time_ns = data_start_time_ns - (
-                data_start_time_ns % sample_period_ns
-            )
-
-        # Ensure that the aligned_start_time_ns is not before the original data start time
-        aligned_start_time_ns = max(aligned_start_time_ns, data_start_time_ns)
-
-        # Now aligned_start_time_ns should be a multiple of 1,000,000ns which fits a 1000Hz sample rate grid
 
         # Calculate the number of target samples based on the last original timestamp
         num_target_samples = int(
@@ -206,17 +196,13 @@ class GridDecimationResample:
 
         # Generate the target timestamps starting from the aligned wallclock second
         target_times_ns = (
-            np.arange(num_target_samples) * (1e9 / self.new_sample_rate)
+            np.arange(num_target_samples) * sample_period_ns
             + aligned_start_time_ns
         )
 
-        if (
-            target_times_ns[0] < original_times_ns[0]
-            or target_times_ns[-1] > original_times_ns[-1]
-        ):
-            logging.error(
-                f"Alignment issue: Target start time {target_times_ns[0]} or end time {target_times_ns[-1]} is outside the range of original times {original_times_ns[0]} to {original_times_ns[-1]}"
-            )
+        # Before raising the ValueError, log the relevant information
+        if target_times_ns[0] < original_times_ns[0] or target_times_ns[-1] > original_times_ns[-1]:
+            logging.error(f"Alignment issue: Target start time {target_times_ns[0]} or end time {target_times_ns[-1]} is outside the range of original times {original_times_ns[0]} to {original_times_ns[-1]}")
             raise ValueError("Target times fall outside the range of original times")
 
         # Vectorized approach for finding the closest indices
@@ -247,6 +233,9 @@ class GridDecimationResample:
         packet["metadata"]["sample_rate"] = self.new_sample_rate
 
         return packet
+
+
+
 
 
 class Resample:
