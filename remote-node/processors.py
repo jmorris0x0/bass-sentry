@@ -194,7 +194,7 @@ class GridDecimationResample:
         # Before raising the ValueError, log the relevant information
         if target_times_ns[0] < original_times_ns[0] or target_times_ns[-1] > original_times_ns[-1]:
             logging.error(f"Alignment issue: Target start time {target_times_ns[0]} or end time {target_times_ns[-1]} is outside the range of original times {original_times_ns[0]} to {original_times_ns[-1]}")
-    raise ValueError("Target times fall outside the range of original times")
+            raise ValueError("Target times fall outside the range of original times")
 
 
         # Vectorized approach for finding the closest indices
