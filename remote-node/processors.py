@@ -140,10 +140,14 @@ class BandpassFilter:
 
 class GridDecimationResample:
     def __init__(self, new_sample_rate):
+        logging.debug(f"Initializing with new_sample_rate: {new_sample_rate}")
+
         if not self.is_valid_frequency(new_sample_rate):
-            raise ValueError("New sample rate must result in an integer number of nanoseconds per sample")
+            raise ValueError(
+                "New sample rate must result in an integer number of nanoseconds per sample"
+            )
+        logging.debug(f"New sample rate is valid.")
         self.new_sample_rate = new_sample_rate
-        self.start_time_ns = None
 
     @staticmethod
     def is_valid_frequency(frequency):
@@ -154,48 +158,72 @@ class GridDecimationResample:
         original_sample_rate = packet["metadata"]["sample_rate"]
         data_start_time_ns = packet["timestamp"]
         original_samples = np.array(packet["data"])
-        
+
         # Ensure original_samples is not empty
         if not len(original_samples):
             raise ValueError("original_samples is empty")
-        
-        # Calculate the start time if it's not set
-        if self.start_time_ns is None:
-            self.start_time_ns = data_start_time_ns - (data_start_time_ns % (1e9 / original_sample_rate))
-        
-        # Create the time series for original and target sample rates
-        original_times_ns = np.arange(len(original_samples)) * (1e9 / original_sample_rate) + self.start_time_ns
-        num_target_samples = int(np.ceil((original_times_ns[-1] - self.start_time_ns) * self.new_sample_rate / 1e9))
-        target_times_ns = np.arange(num_target_samples) * (1e9 / self.new_sample_rate) + self.start_time_ns
-        
+
+        logging.debug(f"Original data_start_time_ns: {data_start_time_ns}")
+
+        # Align the start of the target grid with the wallclock second
+        # Find the timestamp at the start of the wallclock second
+        aligned_start_time_ns = data_start_time_ns - (data_start_time_ns % 1e9)
+
+        # Create the time series for original sample times
+        original_times_ns = (
+            np.arange(len(original_samples)) * (1e9 / original_sample_rate)
+            + data_start_time_ns
+        )
+
+        # Calculate the number of target samples based on the last original timestamp
+        num_target_samples = int(
+            np.ceil(
+                (original_times_ns[-1] - aligned_start_time_ns)
+                * self.new_sample_rate
+                / 1e9
+            )
+        )
+
+        # Generate the target timestamps starting from the aligned wallclock second
+        target_times_ns = (
+            np.arange(num_target_samples) * (1e9 / self.new_sample_rate)
+            + aligned_start_time_ns
+        )
+
         # Confirm that target_times_ns falls within the range of original_times_ns
-        if target_times_ns[0] < original_times_ns[0] or target_times_ns[-1] > original_times_ns[-1]:
+        if (
+            target_times_ns[0] < original_times_ns[0]
+            or target_times_ns[-1] > original_times_ns[-1]
+        ):
             raise ValueError("Target times fall outside the range of original times")
-        
+
         # Vectorized approach for finding the closest indices
-        indices = np.searchsorted(original_times_ns, target_times_ns, side='left')
-        
+        indices = np.searchsorted(original_times_ns, target_times_ns, side="left")
+
         # Adjust indices to handle edge cases
         indices = np.where(indices == 0, 0, indices - 1)
-        
+
         # Calculate the differences to the left and right neighbors
         diff_left = target_times_ns - original_times_ns[indices]
-        diff_right = np.abs(target_times_ns - original_times_ns[np.minimum(indices + 1, len(original_samples) - 1)])
-        
+        diff_right = np.abs(
+            target_times_ns
+            - original_times_ns[np.minimum(indices + 1, len(original_samples) - 1)]
+        )
+
         # Choose the closest side
         closest_indices = np.where(diff_right < diff_left, indices + 1, indices)
-        
+
         # Ensure indices are within the valid range
         closest_indices = np.clip(closest_indices, 0, len(original_samples) - 1)
-        
+
         # Create the resampled array by selecting the closest original samples
         resampled_data = original_samples[closest_indices]
-        
+
         # Update the packet with the resampled data
         packet["timestamp"] = int(target_times_ns[0])
         packet["data"] = resampled_data.tolist()
         packet["metadata"]["sample_rate"] = self.new_sample_rate
-        
+
         return packet
 
 
