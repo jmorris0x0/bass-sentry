@@ -141,6 +141,7 @@ class BandpassFilter:
 import numpy as np
 import logging
 
+
 class GridDecimationResample:
     def __init__(self, new_sample_rate):
         logging.debug(f"Initializing with new_sample_rate: {new_sample_rate}")
@@ -177,7 +178,9 @@ class GridDecimationResample:
             aligned_start_time_ns = data_start_time_ns
         else:
             # If not aligned, align to the next sample on the grid
-            aligned_start_time_ns = ((data_start_time_ns // sample_period_ns) + 1) * sample_period_ns
+            aligned_start_time_ns = (
+                (data_start_time_ns // sample_period_ns) + 1
+            ) * sample_period_ns
 
         # Create the time series for original sample times
         original_times_ns = (
@@ -196,13 +199,17 @@ class GridDecimationResample:
 
         # Generate the target timestamps starting from the aligned wallclock second
         target_times_ns = (
-            np.arange(num_target_samples) * sample_period_ns
-            + aligned_start_time_ns
+            np.arange(num_target_samples) * sample_period_ns + aligned_start_time_ns
         )
 
         # Before raising the ValueError, log the relevant information
-        if target_times_ns[0] < original_times_ns[0] or target_times_ns[-1] > original_times_ns[-1]:
-            logging.error(f"Alignment issue: Target start time {target_times_ns[0]} or end time {target_times_ns[-1]} is outside the range of original times {original_times_ns[0]} to {original_times_ns[-1]}")
+        if (
+            target_times_ns[0] < original_times_ns[0]
+            or target_times_ns[-1] > original_times_ns[-1]
+        ):
+            logging.error(
+                f"Alignment issue: Target start time {target_times_ns[0]} or end time {target_times_ns[-1]} is outside the range of original times {original_times_ns[0]} to {original_times_ns[-1]}"
+            )
             raise ValueError("Target times fall outside the range of original times")
 
         # Vectorized approach for finding the closest indices
@@ -233,9 +240,6 @@ class GridDecimationResample:
         packet["metadata"]["sample_rate"] = self.new_sample_rate
 
         return packet
-
-
-
 
 
 class Resample:
