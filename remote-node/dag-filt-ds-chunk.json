@@ -1,0 +1,32 @@
+{
+    "location": "dance-cave",
+    "steps": {
+        "start": {
+            "type": "start",
+            "next": ["1"]
+        },
+        "1": {
+            "type": "bandpass_filter",
+            "params": {
+                "low_cut": 35,
+                "high_cut": 250
+            },
+            "next": ["2"]
+        },
+        "2": {
+            "type": "resample",
+            "params": {
+                "new_sample_rate": 1000
+            },
+            "next": ["3"]
+        },
+        "3": {
+            "type": "metadata_tagger",
+            "params": {
+                "tag": "reference"
+            },
+            "next": []
+        }
+    }
+}
+
