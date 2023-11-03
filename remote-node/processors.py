@@ -190,12 +190,12 @@ class GridDecimationResample:
             + aligned_start_time_ns
         )
 
-        # Confirm that target_times_ns falls within the range of original_times_ns
-        if (
-            target_times_ns[0] < original_times_ns[0]
-            or target_times_ns[-1] > original_times_ns[-1]
-        ):
-            raise ValueError("Target times fall outside the range of original times")
+
+        # Before raising the ValueError, log the relevant information
+        if target_times_ns[0] < original_times_ns[0] or target_times_ns[-1] > original_times_ns[-1]:
+            logging.error(f"Alignment issue: Target start time {target_times_ns[0]} or end time {target_times_ns[-1]} is outside the range of original times {original_times_ns[0]} to {original_times_ns[-1]}")
+    raise ValueError("Target times fall outside the range of original times")
+
 
         # Vectorized approach for finding the closest indices
         indices = np.searchsorted(original_times_ns, target_times_ns, side="left")
