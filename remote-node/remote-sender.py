@@ -58,7 +58,7 @@ CHUNK = int(RATE / SENDING_RATE)
 
 def setup_logging():
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format="%(name)s - %(levelname)s - %(message)s - Line %(lineno)d",
     )
     logger = logging.getLogger(__name__)
