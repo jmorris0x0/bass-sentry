@@ -167,7 +167,14 @@ class GridDecimationResample:
 
         # Align the start of the target grid with the wallclock second
         # Find the timestamp at the start of the wallclock second
-        aligned_start_time_ns = data_start_time_ns - (data_start_time_ns % 1e9)
+        # If data_start_time_ns is less than 1e9 away from the next whole second, align to the current second.
+        if (data_start_time_ns % 1e9) > (1e9 - (1 / original_sample_rate * 1e9)):
+            aligned_start_time_ns = data_start_time_ns - (data_start_time_ns % 1e9) + 1e9
+        else:
+            aligned_start_time_ns = data_start_time_ns - (data_start_time_ns % 1e9)
+
+        # Ensure that the aligned_start_time_ns is not before the original_times_ns[0]
+        aligned_start_time_ns = max(aligned_start_time_ns, original_times_ns[0])
 
         # Create the time series for original sample times
         original_times_ns = (
