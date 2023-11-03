@@ -14,7 +14,7 @@
             "next": ["2"]
         },
         "2": {
-            "type": "resample",
+            "type": "grid_decimation_resample",
             "params": {
                 "new_sample_rate": 1000
             },
