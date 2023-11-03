@@ -283,6 +283,9 @@ class ChunkToCCStream(DataProcessor):
         return db
 
     def rcc(self, sig1, sig2, fs, ref_amp=10000.0):
+        """
+        Robust cross-correlation
+        """
         if len(sig1) != len(sig2):
             raise ValueError("Input signals must be the same length")
         if fs <= 0:
