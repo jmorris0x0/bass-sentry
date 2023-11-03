@@ -240,6 +240,13 @@ class Resample:
         data["data"] = resampled_data
         data["metadata"]["sample_rate"] = self.new_sample_rate
 
+        # TODO: This doesn't upate the timestamp.This is hard because we don't
+        # know the start time of the original data because of buffering. We can
+        # probably get around this by using the timestamp of the first chunk,
+        # but this will cause problems if the first chunk is empty.
+        # We could also give indexes to the chunks and use that to calculate
+        # the timestamp.
+
         return data
 
 
