@@ -32,7 +32,7 @@ class DataHandler:
 
     def process_data(self, station_id: str, data_type: str, data: Dict[str, Any]):
         logger.debug(
-            f"Received data: station_id={station_id}, data_type={data_type}, metadata={data['metadata']}"
+            f"Received data: station_id={station_id}, data_type={data_type}, timestamp={data['timestamp']}, metadata={data['metadata']}"
         )
 
         if data_type not in self.processors:
