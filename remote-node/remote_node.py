@@ -99,9 +99,8 @@ def callback(
 ):
     logger = setup_logging()
 
-    # Is status is an instance of CallbackFlags? I'm not sure.
-    logger.warn(f"Status type: {type(status)}, value: {status}")
-
+    status_flags = str(status).replace("CallbackFlags.", "") if status else "None"
+    logger.debug(f"Status flags: {status_flags}")
 
     if status:
         if status & sd.CallbackFlags.input_overflow:
