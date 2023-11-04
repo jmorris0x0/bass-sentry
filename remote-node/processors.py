@@ -79,15 +79,17 @@ class DbfsMeasurement:
         bit_depth = data["metadata"]["bit_depth"]
         rms_val = self.rms(data["data"])
         db_val = self.rms_to_db(rms_val, bit_depth)
+
         processed_data = {
             "data_type": "scalar",
             "timestamp": data["timestamp"],
             "time_precision": data["time_precision"],
             "data": db_val,
             "metadata": {
-                "units": "dBFS",
+                "units": "dBSPL" if DBFS_TO_DBSPL != 0 else "dBFS",
             },
         }
+
         # Include existing metadata in the processed data
         processed_data["metadata"].update(data["metadata"])
         return processed_data
