@@ -281,7 +281,7 @@
     {
       "datasource": {
         "name": "InfluxDB",
-        "type": "influxdb
+        "type": "influxdb"
       },
       "fieldConfig": {
         "defaults": {
@@ -355,7 +355,7 @@
     {
       "datasource": {
         "name": "InfluxDB",
-        "type": "influxdb
+        "type": "influxdb"
       },
       "fieldConfig": {
         "defaults": {
