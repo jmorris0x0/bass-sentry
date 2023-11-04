@@ -81,7 +81,7 @@
               }
             ]
           },
-          "unit": "dBFS"
+          "unit": "dBSPL"
         },
         "overrides": []
       },
@@ -110,11 +110,11 @@
             "type": "influxdb",
             "name": "InfluxDB"
           },
-          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"dBFS\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")",
+          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"dBSPL\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")",
           "refId": "A"
         }
       ],
-      "title": "dBFS",
+      "title": "dBSPL",
       "type": "timeseries"
     },
     {
@@ -174,11 +174,11 @@
             "type": "influxdb",
             "name": "InfluxDB"
           },
-          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"dBFS\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")",
+          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"dBSPL\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")",
           "refId": "A"
         }
       ],
-      "title": "dBFS",
+      "title": "dBSPL",
       "type": "gauge"
     },
     {
@@ -245,7 +245,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "dBFS Scratch",
+  "title": "dBSPL Scratch",
   "uid": "edfd20a5-0503-4483-86ef-be9b94579c0d",
   "version": 2,
   "weekStart": ""
