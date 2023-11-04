@@ -104,7 +104,7 @@ def callback(
         logger.warning(f"Status flags: {status_flags}")
         # Check if status.input_overflow is set
         if status.input_overflow:
-            logger.error(
+            logger.warn(
                 "Input overflow - buffer may be too small or system too slow, data may be lost!"
             )
 
