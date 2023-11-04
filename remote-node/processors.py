@@ -6,7 +6,9 @@ from scipy.signal import resample
 from collections import deque
 
 
-DBFS_TO_DBSPL = 94
+# Level at which a calibrated system will clip
+# The loudest sound you expect to measure
+REFERECE_DBSPL = 120
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +88,7 @@ class DbfsMeasurement:
             "time_precision": data["time_precision"],
             "data": db_val,
             "metadata": {
-                "units": "dBSPL" if DBFS_TO_DBSPL != 0 else "dBFS",
+                "units": "dBSPL" if REFERECE_DBSPL != 0 else "dBFS",
             },
         }
 
@@ -102,7 +104,7 @@ class DbfsMeasurement:
         if rms_val == 0:
             return -np.inf
         reference = 2 ** (bit_depth - 1)
-        return 20 * np.log10(rms_val / reference) + DBFS_TO_DBSPL
+        return 20 * np.log10(rms_val / reference) + REFERECE_DBSPL
 
 
 class BandpassFilter:
