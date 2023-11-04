@@ -5,7 +5,8 @@ from copy import deepcopy
 from scipy.signal import resample
 from collections import deque
 
-from remote_node import DBFS_TO_DBSPL
+
+DBFS_TO_DBSPL = 94
 
 logger = logging.getLogger(__name__)
 
