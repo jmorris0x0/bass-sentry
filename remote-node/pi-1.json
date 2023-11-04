@@ -1,0 +1,25 @@
+{
+    "location": "Dance_Cave",
+    "steps": {
+        "start": {
+            "type": "start",
+            "next": ["1", "2"]
+        },
+        "1": {
+            "type": "dbfs_measurement",
+            "next": []
+        },
+        "2": {
+            "type": "bandpass_filter",
+            "params": {
+                "low_cut": 35,
+                "high_cut": 85
+            },
+            "next": ["3"]
+        },
+        "3": {
+            "type": "dbfs_measurement",
+            "next": []
+        }
+    }
+}

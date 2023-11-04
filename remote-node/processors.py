@@ -97,7 +97,7 @@ class DbfsMeasurement:
         if rms_val == 0:
             return -np.inf
         reference = 2 ** (bit_depth - 1)
-        return 20 * np.log10(rms_val / reference)
+        return 20 * np.log10(rms_val / reference) + DBFS_TO_DBSPL
 
 
 class BandpassFilter:

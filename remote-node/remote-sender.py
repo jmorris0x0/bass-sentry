@@ -54,6 +54,7 @@ INPUT_DEVICE = int(device_info["index"])
 CHANNELS = 1
 SENDING_RATE = 2  # Hz
 CHUNK = int(RATE / SENDING_RATE)
+DBFS_TO_DBSPL = 94
 
 
 def setup_logging():

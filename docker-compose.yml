@@ -46,7 +46,7 @@ services:
     depends_on:
       - influxdb
     ports:
-      - "3000:3000"
+      - "80:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: grafanapass  # Change 'grafanapass' to your preferred password
       GF_SECURITY_ADMIN_USER: admin

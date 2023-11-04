@@ -307,6 +307,85 @@ class ChunkToCCStream(DataProcessor):
         return db, tau
 
 
+import numpy as np
+import logging
+from typing import Dict, Any
+
+# Configure logging
+logging.basicConfig(level=logging.ERROR)
+logger = logging.getLogger(__name__)
+
+
+class ChunkToTimeSeries(DataProcessor):
+    BUFFER_SECONDS = 2
+
+    def __init__(self):
+        super().__init__()
+        self.buffers = {}
+
+    def process(self, data: Dict[str, Any]):
+        station_id = data["station_id"]
+        metadata = data.get("metadata", {})
+        sample_rate = metadata.get("sample_rate", 44100)
+        if sample_rate <= 0:
+            raise ValueError(f"Invalid sample rate: {sample_rate}")
+
+        max_buffer_size = int(self.BUFFER_SECONDS * sample_rate)
+
+        timestamp = data["timestamp"]
+        audio_data = np.array(data["data"])
+
+        if audio_data.ndim == 1:
+            audio_data = audio_data[:, np.newaxis]
+
+        self.process_stream(
+            station_id, timestamp, audio_data, max_buffer_size, sample_rate
+        )
+
+    def process_stream(
+        self, station_id, timestamp, audio_data, max_buffer_size, sample_rate
+    ):
+        buffer = self.buffers.setdefault(
+            station_id, {"timestamps": [], "data": np.array([])}
+        )
+        buffer["timestamps"].append(timestamp)
+        buffer["data"] = (
+            np.concatenate((buffer["data"], audio_data), axis=1)
+            if buffer["data"].size
+            else audio_data
+        )
+
+        if buffer["data"].shape[1] > max_buffer_size:
+            excess_length = buffer["data"].shape[1] - max_buffer_size
+            buffer["data"] = buffer["data"][:, excess_length:]
+            buffer["timestamps"] = buffer["timestamps"][-max_buffer_size:]
+
+        self.detect_gaps_or_overlaps(station_id, buffer["timestamps"], sample_rate)
+
+    def detect_gaps_or_overlaps(self, stream_id, timestamps, sample_rate):
+        if not timestamps:
+            return  # Skip if buffer is empty
+
+        timestamps_array = np.array(timestamps)
+        timestamp_diffs = np.diff(timestamps_array)
+        expected_diff = 1 / sample_rate
+        anomalies = np.where(np.abs(timestamp_diffs - expected_diff) > 1e-6)[0]
+
+        if anomalies.size > 0:
+            for anomaly_index in anomalies:
+                if timestamp_diffs[anomaly_index] > expected_diff:
+                    logger.error(
+                        f"Gap detected in stream {stream_id} between "
+                        f"{timestamps_array[anomaly_index]} and "
+                        f"{timestamps_array[anomaly_index + 1]}"
+                    )
+                else:
+                    logger.error(
+                        f"Overlap detected in stream {stream_id} at "
+                        f"{timestamps_array[anomaly_index]}"
+                    )
+
+
 class ChunkToScalar(DataProcessor):
     def process(self, data):
         # process chunked time-series data into a scalar value
