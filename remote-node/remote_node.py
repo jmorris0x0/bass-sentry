@@ -100,7 +100,7 @@ def callback(
     logger = setup_logging()
 
     status_flags = str(status).replace("CallbackFlags.", "") if status else "None"
-    logger.debug(f"Status flags: {status_flags}")
+    logger.warn(f"Status flags: {status_flags}")
 
     if status:
         if status & sd.CallbackFlags.input_overflow:
