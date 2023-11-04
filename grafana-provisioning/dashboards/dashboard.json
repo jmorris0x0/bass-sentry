@@ -67,7 +67,7 @@
             }
           },
           "mappings": [],
-          "min": -80,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -77,7 +77,7 @@
               },
               {
                 "color": "red",
-                "value": -40
+                "value": 70
               }
             ]
           },
@@ -129,8 +129,8 @@
           },
           "custom": {},
           "mappings": [],
-          "max": 0,
-          "min": -96,
+          "max": 120,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -140,7 +140,7 @@
               },
               {
                 "color": "red",
-                "value": -40
+                "value": 70
               }
             ]
           }
@@ -201,7 +201,7 @@
               },
               {
                 "color": "red",
-                "value": 80
+                "value": 0
               }
             ]
           }
