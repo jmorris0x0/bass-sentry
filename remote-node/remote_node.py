@@ -99,18 +99,14 @@ def callback(
 ):
     logger = setup_logging()
 
-
-
     if status:
         status_flags = str(status).replace("CallbackFlags.", "") if status else "None"
-        logger.warn(f"Status flags: {status_flags}")
-
-        if status & sd.CallbackFlags.input_overflow:
+        logger.warning(f"Status flags: {status_flags}")
+        # Check if status.input_overflow is set
+        if status.input_overflow:
             logger.error(
                 "Input overflow - buffer may be too small or system too slow, data may be lost!"
             )
-        else:
-            logger.warning(status)
 
     timestamp = initial_time + sample_counter.value * ns_between_messages
     logger.debug(
