@@ -54,15 +54,22 @@ INPUT_DEVICE = int(device_info["index"])
 CHANNELS = 1
 SENDING_RATE = 2  # Hz
 CHUNK = int(RATE / SENDING_RATE)
-DBFS_TO_DBSPL = 94
 
+
+import logging
 
 def setup_logging():
+    # Define your date format
+    date_format = "%Y-%m-%d %H:%M:%S %Z"  # This includes timezone information
+    
+    # Include the asctime field in your format string and set the datefmt parameter
     logging.basicConfig(
         level=logging.INFO,
-        format="%(name)s - %(levelname)s - %(message)s - Line %(lineno)d",
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s - Line %(lineno)d",
+        datefmt=date_format
     )
     logger = logging.getLogger(__name__)
+
     return logger
 
 

@@ -145,10 +145,6 @@ class BandpassFilter:
         return output
 
 
-import numpy as np
-import logging
-
-
 class GridDecimationResample:
     def __init__(self, new_sample_rate):
         logging.debug(f"Initializing with new_sample_rate: {new_sample_rate}")
@@ -295,7 +291,7 @@ class Resample:
         # probably get around this by using the timestamp of the first chunk,
         # but this will cause problems if the first chunk is empty.
         # We could also give indexes to the chunks and use that to calculate
-        # the timestamp.
+        # the timestamp. -JM
 
         return data
 

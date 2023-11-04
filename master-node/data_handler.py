@@ -307,9 +307,7 @@ class ChunkToCCStream(DataProcessor):
         return db, tau
 
 
-import numpy as np
-import logging
-from typing import Dict, Any
+
 
 # Configure logging
 logging.basicConfig(level=logging.ERROR)

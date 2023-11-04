@@ -225,7 +225,7 @@
               },
               {
                 "color": "dark-red",
-                "value": 110
+                "value": 93
               }
             ]
           }
@@ -285,7 +285,7 @@
               },
               {
                 "color": "red",
-                "value": 110
+                "value": 93
               }
             ]
           }
@@ -341,6 +341,6 @@
   "timezone": "",
   "title": "DJ Booth",
   "uid": "e2eb4577-bab8-4b11-8e80-50d84af24cf7",
-  "version": 11,
+  "version": 13,
   "weekStart": ""
 }
