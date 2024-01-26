@@ -307,13 +307,6 @@ class ChunkToCCStream(DataProcessor):
         return db, tau
 
 
-
-
-# Configure logging
-logging.basicConfig(level=logging.ERROR)
-logger = logging.getLogger(__name__)
-
-
 class ChunkToTimeSeries(DataProcessor):
     BUFFER_SECONDS = 2
 
