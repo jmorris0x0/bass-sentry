@@ -1,21 +1,22 @@
 import argparse
+import functools
 import json
 import logging
 import multiprocessing
+import platform
 import signal
 import sys
 import time
 from functools import partial
-import functools
-import platform
-
 from pprint import pprint, pformat
+
 import numpy as np
 import ntplib
 import sounddevice as sd
 from scipy.signal import fftconvolve
-from telemetry_sender import TelemetrySender
+
 from processors import SignalProcessor
+from telemetry_sender import TelemetrySender
 
 
 def get_input_device():

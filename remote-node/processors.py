@@ -1,10 +1,10 @@
 import logging
-import numpy as np
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
-from scipy.signal import resample
-from collections import deque
 
+import numpy as np
+from scipy.signal import resample
 
 # Level at which a calibrated system will clip
 # The loudest sound you expect to measure

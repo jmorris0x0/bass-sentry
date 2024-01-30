@@ -1,9 +1,10 @@
 import json
 import logging
-from queue import Queue
 import threading
 import time
 import uuid
+from queue import Queue
+
 import paho.mqtt.client as mqtt
 from zeroconf import ServiceBrowser, Zeroconf
 
