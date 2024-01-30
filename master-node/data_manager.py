@@ -1,4 +1,3 @@
-import logging
 import json
 import logging
 import os
@@ -11,7 +10,6 @@ from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
 
 from data_handler import DataHandler
-
 
 logger = logging.getLogger(__name__)
 
