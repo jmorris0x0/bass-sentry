@@ -28,6 +28,9 @@ These questions highlight the need for data-driven decision-making regarding vol
 - **Cross-Correlation Analysis**: Distinct feature on the master node that filters environmental noise, focusing on specific event sounds.
 - **Customizable Data Processing with DAG Files**: Allows for tailored audio analysis suited to various event environments.
 
+<p align="center">
+  <img src="./img/life-of-the-party.png" alt="Bass Sentry Logo" width="600"/>
+</p>
 
 ## System Architecture
 
