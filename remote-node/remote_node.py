@@ -57,8 +57,6 @@ SENDING_RATE = 2  # Hz
 CHUNK = int(RATE / SENDING_RATE)
 
 
-import logging
-
 def setup_logging():
     # Define your date format
     date_format = "%Y-%m-%d %H:%M:%S %Z"  # This includes timezone information
@@ -213,7 +211,6 @@ def sender(data_queue, config):
         logger.error(f"Unexpected error in sender: {e}")
         telemetry.stop()
 
-
 def main():
     parser = argparse.ArgumentParser(description="Process signals.")
     parser.add_argument("config", type=str, help="Path to the JSON configuration file")
@@ -226,28 +223,43 @@ def main():
     data_queue = multiprocessing.Queue()
     sample_counter = multiprocessing.Value("i", 0)
 
+    # Initialize processes with daemon=True
     recorder_process = multiprocessing.Process(
         target=recorder, args=(data_queue, sample_counter)
     )
+    recorder_process.daemon = True  # Ensures it will close with main process
 
     sender_process = multiprocessing.Process(target=sender, args=(data_queue, config))
+    sender_process.daemon = True  # Ensures it will close with main process
 
+    # Start both processes
     recorder_process.start()
     sender_process.start()
 
+    # Set up signal handler
     handler = functools.partial(signal_handler, recorder_process, sender_process)
     signal.signal(signal.SIGTERM, handler)
     signal.signal(signal.SIGINT, handler)
 
     try:
+        # Use try-finally to ensure cleanup
         recorder_process.join()
         sender_process.join()
     except KeyboardInterrupt:
         logger = setup_logging()
         logger.info("Keyboard interrupt received, terminating processes...")
         signal_handler(recorder_process, sender_process, None, None)
+    finally:
+        # Ensure all processes are terminated
+        if recorder_process.is_alive():
+            recorder_process.terminate()
+        if sender_process.is_alive():
+            sender_process.terminate()
 
+        recorder_process.join()
+        sender_process.join()
 
 if __name__ == "__main__":
     multiprocessing.set_start_method("spawn", force=True)
     main()
+
