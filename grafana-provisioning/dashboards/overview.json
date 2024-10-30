@@ -87,7 +87,7 @@
               },
               {
                 "color": "dark-red",
-                "value": 110
+                "value": 105
               }
             ]
           }
@@ -147,7 +147,7 @@
               },
               {
                 "color": "red",
-                "value": 110
+                "value": 105
               }
             ]
           }
@@ -239,7 +239,7 @@
               },
               {
                 "color": "dark-red",
-                "value": 110
+                "value": 93
               }
             ]
           }
@@ -299,7 +299,7 @@
               },
               {
                 "color": "red",
-                "value": 110
+                "value": 93
               }
             ]
           }
@@ -404,7 +404,7 @@
               },
               {
                 "color": "dark-red",
-                "value": 80
+                "value": 90
               }
             ]
           }
@@ -445,8 +445,8 @@
     },
     {
       "datasource": {
-        "type": "influxdb",
-        "name": "InfluxDB"
+        "name": "InfluxDB",
+        "type": "influxdb"
       },
       "fieldConfig": {
         "defaults": {
@@ -464,7 +464,7 @@
               },
               {
                 "color": "red",
-                "value": 80
+                "value": 90
               }
             ]
           }
@@ -519,8 +519,8 @@
     },
     {
       "datasource": {
-        "type": "influxdb",
-        "name": "InfluxDB"
+        "name": "InfluxDB",
+        "type": "influxdb"
       },
       "fieldConfig": {
         "defaults": {
@@ -564,7 +564,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "dark-red",
@@ -609,8 +610,8 @@
     },
     {
       "datasource": {
-        "type": "influxdb",
-        "name": "InfluxDB"
+        "name": "InfluxDB",
+        "type": "influxdb"
       },
       "fieldConfig": {
         "defaults": {
@@ -623,7 +624,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -683,6 +685,6 @@
   "timezone": "",
   "title": "Overview",
   "uid": "a9738d58-f81c-4129-83a6-0b5fdc915d89",
-  "version": 14,
+  "version": 25,
   "weekStart": ""
 }
