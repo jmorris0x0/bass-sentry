@@ -29,7 +29,7 @@ These questions highlight the need for data-driven decision-making regarding vol
 - **Customizable Data Processing with DAG Files**: Allows for tailored audio analysis suited to various event environments.
 
 <p align="center">
-  <img src="./img/life-of-the-party.png" alt="Bass Sentry Logo" width="600"/>
+  <img src="./img/life-of-the-party.png" alt="Bass Sentry Logo" width="800"/>
 </p>
 
 ## System Architecture
