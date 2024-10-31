@@ -114,8 +114,7 @@
     },
     {
       "datasource": {
-        "type": "influxdb",
-        "uid": "P951FEA4DE68E13C5"
+        "type": "influxdb"
       },
       "fieldConfig": {
         "defaults": {
@@ -266,8 +265,7 @@
     },
     {
       "datasource": {
-        "type": "influxdb",
-        "uid": "P951FEA4DE68E13C5"
+        "type": "influxdb"
       },
       "fieldConfig": {
         "defaults": {
