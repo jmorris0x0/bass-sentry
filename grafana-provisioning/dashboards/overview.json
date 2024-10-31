@@ -138,6 +138,7 @@
           },
           "mappings": [],
           "max": 120,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -180,7 +181,7 @@
             "name": "InfluxDB",
             "type": "influxdb"
           },
-          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"dBSPL\")\n  |> filter(fn: (r) => r[\"location\"] == \"Dance_Cave\")\n  |> filter(fn: (r) => r[\"band\"] == \"full\")\n  |> yield(name: \"raw\")\n",
+          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"dBSPL\")\n  |> filter(fn: (r) => r[\"location\"] == \"Dance_Cave\")\n  |> filter(fn: (r) => r[\"band\"] == \"full\")\n  |> last()\n  |> yield(name: \"last_value\")\n",
           "refId": "A"
         }
       ],
@@ -290,6 +291,7 @@
           },
           "mappings": [],
           "max": 120,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -332,7 +334,7 @@
             "name": "InfluxDB",
             "type": "influxdb"
           },
-          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"dBSPL\")\n  |> filter(fn: (r) => r[\"location\"] == \"Dance_Cave\")\n  |> filter(fn: (r) => r[\"band\"] == \"35-85Hz\")\n  |> yield(name: \"raw\")",
+          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"dBSPL\")\n  |> filter(fn: (r) => r[\"location\"] == \"Dance_Cave\")\n  |> filter(fn: (r) => r[\"band\"] == \"35-85Hz\")\n  |> last()\n  |> yield(name: \"last_value\")",
           "refId": "A"
         }
       ],
@@ -455,6 +457,7 @@
           },
           "mappings": [],
           "max": 120,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -497,7 +500,7 @@
             "name": "InfluxDB",
             "type": "influxdb"
           },
-          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"dBSPL\")\n  |> filter(fn: (r) => r[\"location\"] == \"Mainspace\")\n  |> filter(fn: (r) => r[\"band\"] == \"full\")\n  |> yield(name: \"raw\")",
+          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"dBSPL\")\n  |> filter(fn: (r) => r[\"location\"] == \"Mainspace\")\n  |> filter(fn: (r) => r[\"band\"] == \"full\")\n  |> last()\n  |> yield(name: \"last_value\")",
           "refId": "A"
         }
       ],
@@ -620,6 +623,7 @@
           },
           "mappings": [],
           "max": 120,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -662,7 +666,7 @@
             "name": "InfluxDB",
             "type": "influxdb"
           },
-          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"dBSPL\")\n  |> filter(fn: (r) => r[\"location\"] == \"32_Langton\")\n  |> filter(fn: (r) => r[\"band\"] == \"35-85Hz\")\n  |> yield(name: \"raw\")",
+          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"dBSPL\")\n  |> filter(fn: (r) => r[\"location\"] == \"32_Langton\")\n  |> filter(fn: (r) => r[\"band\"] == \"35-85Hz\")\n  |> last()\n  |> yield(name: \"last_value\")",
           "refId": "A"
         }
       ],
@@ -685,6 +689,6 @@
   "timezone": "",
   "title": "Overview",
   "uid": "a9738d58-f81c-4129-83a6-0b5fdc915d89",
-  "version": 41,
+  "version": 53,
   "weekStart": ""
 }
