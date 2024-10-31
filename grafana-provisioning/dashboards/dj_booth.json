@@ -114,7 +114,7 @@
     },
     {
       "datasource": {
-      "name": "InfluxDB",
+        "name": "InfluxDB",
         "type": "influxdb"
       },
       "fieldConfig": {
