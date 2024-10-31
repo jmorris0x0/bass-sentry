@@ -114,8 +114,8 @@
     },
     {
       "datasource": {
-        "name": "InfluxDB",
-        "type": "influxdb"
+        "type": "influxdb",
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -166,7 +166,7 @@
             "name": "InfluxDB",
             "type": "influxdb"
           },
-          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"dBSPL\")\n  |> filter(fn: (r) => r[\"location\"] == \"Dance_Cave\")\n  |> filter(fn: (r) => r[\"band\"] == \"full\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")",
+          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"dBSPL\")\n  |> filter(fn: (r) => r[\"location\"] == \"Dance_Cave\")\n  |> filter(fn: (r) => r[\"band\"] == \"full\")\n  |> yield(name: \"raw\")",
           "refId": "A"
         }
       ],
@@ -266,8 +266,8 @@
     },
     {
       "datasource": {
-        "name": "InfluxDB",
-        "type": "influxdb"
+        "type": "influxdb",
+        "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
         "defaults": {
@@ -318,7 +318,7 @@
             "name": "InfluxDB",
             "type": "influxdb"
           },
-          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"dBSPL\")\n  |> filter(fn: (r) => r[\"location\"] == \"Dance_Cave\")\n  |> filter(fn: (r) => r[\"band\"] == \"35-85Hz\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")\n",
+          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"dBSPL\")\n  |> filter(fn: (r) => r[\"location\"] == \"Dance_Cave\")\n  |> filter(fn: (r) => r[\"band\"] == \"35-85Hz\")\n  |> yield(name: \"raw\")\n",
           "refId": "A"
         }
       ],
@@ -341,6 +341,6 @@
   "timezone": "",
   "title": "DJ Booth",
   "uid": "e2eb4577-bab8-4b11-8e80-50d84af24cf7",
-  "version": 13,
+  "version": 21,
   "weekStart": ""
 }
