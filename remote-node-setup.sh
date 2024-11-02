@@ -35,7 +35,8 @@ SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
 sudo bash -c "cat > $SERVICE_FILE" <<EOL
 [Unit]
 Description=Bass Sentry Remote Node Service
-After=network.target
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
 
 [Service]
 ExecStart=$PYTHON_EXEC $REPO_DIR/remote-node/remote_node.py $REPO_DIR/remote-node/dag_files/$DAG_FILE

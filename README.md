@@ -58,6 +58,9 @@ These questions highlight the need for data-driven decision-making regarding vol
 6. Calibrate volume on remote nodes.
 7. Begin monitoring audio via the master node Grafana. (See below.)
 
+Remote node setup now has a script:
+`./remote-node-setup.sh pi-3.json`
+
 ## Usage
 
 Interact with Bass Sentry during an event through the Grafana interface, which displays real-time audio data, enabling informed adjustments to audio levels.
