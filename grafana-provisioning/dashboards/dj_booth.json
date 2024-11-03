@@ -133,6 +133,10 @@
                 "value": null
               },
               {
+                "color": "#EAB839",
+                "value": 95
+              },
+              {
                 "color": "red",
                 "value": 105
               }
@@ -286,6 +290,10 @@
                 "value": null
               },
               {
+                "color": "#EAB839",
+                "value": 83
+              },
+              {
                 "color": "red",
                 "value": 93
               }
@@ -343,6 +351,6 @@
   "timezone": "",
   "title": "DJ Booth",
   "uid": "e2eb4577-bab8-4b11-8e80-50d84af24cf7",
-  "version": 33,
+  "version": 43,
   "weekStart": ""
 }

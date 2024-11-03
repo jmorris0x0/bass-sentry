@@ -50,6 +50,7 @@ services:
     environment:
       GF_SECURITY_ADMIN_PASSWORD: grafanapass  # Change 'grafanapass' to your preferred password
       GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_API_KEY: "p7hV9Z2X!kL3zNfB6QkM1cD4xS2jH8rG"
 
   ntp:
     image: cturra/ntp

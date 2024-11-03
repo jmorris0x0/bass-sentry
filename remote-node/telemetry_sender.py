@@ -85,7 +85,7 @@ class MQTTHandler:
 
     def reconnect(self):
         delay = self.reconnect_delay
-        max_delay = 10  # maximum delay of 60 seconds
+        max_delay = 5
         while not self.is_connected:
             try:
                 self.client.connect(self.broker_address)
@@ -95,7 +95,7 @@ class MQTTHandler:
                     f"Connection failed with error: {e}. Retrying in {delay} seconds..."
                 )
                 time.sleep(delay)
-                delay = min(delay * 2, max_delay)
+                delay = min(delay * 1.5, max_delay)
             except Exception as e:
                 logger.error(f"Unexpected error: {e}")
                 raise  # re-raise unexpected exceptions
