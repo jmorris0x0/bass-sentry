@@ -1,9 +1,5 @@
 # Bass Sentry
 
-<p align="center">
-  <img src="./img/bs-logo.jpg" alt="Bass Sentry Logo" width="300"/>
-</p>
-
 ## Overview
 
 Bass Sentry is a distributed audio monitoring system designed to optimize sound levels at large-scale events, balancing the energy of music with regulatory compliance and neighborhood harmony. It's particularly useful for event organizers and sound engineers.
@@ -130,9 +126,9 @@ A standout feature of the DAG configuration is its ability to create multiple, c
 
 ## Advanced Feature: Cross Correlation
 
-The cross-correlation feature on the master node is a pivotal aspect of Bass Sentry. It allows for the subtraction of all non-event sounds, such as environmental noise, ensuring the accuracy of the audio level assessments. This feature is particularly useful in environments with varying sound sources, like adjacent theaters, providing a clear and undistorted understanding of the event's sound levels.
+The cross-correlation feature on the master node is a central aspect of Bass Sentry. It allows for the subtraction of all non-event sounds, such as environmental noise, ensuring the accuracy of the audio level assessments. This feature is particularly useful in environments with varying sound sources, like adjacent theaters, providing a clear and undistorted understanding of the event's sound levels.
 
 
 ## Licensing
 
-Copyright © 2023-2024 Jonathan Morris - All Rights Reserved
+Copyright © 2023-2025 Jonathan Morris - All Rights Reserved
