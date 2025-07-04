@@ -87,11 +87,13 @@ class TestSignalGenerator:
 
     def test_stereo_with_delay(self):
         """Test stereo signal generation with delay."""
+        # Use a chirp signal instead of sine wave to avoid periodic ambiguity
         config = SignalConfig(
-            signal_type=SignalType.SINE,
+            signal_type=SignalType.CHIRP,
             duration=self.duration,
             sample_rate=self.sample_rate,
-            frequency=440.0,
+            start_frequency=100.0,
+            end_frequency=1000.0,
             amplitude=0.5,
         )
 
@@ -104,16 +106,24 @@ class TestSignalGenerator:
         assert len(left) == len(right)
 
         # For positive delay, right should be delayed
-        # We expect to find the peak at negative lag (left leads right)
-        correlation = np.correlate(right, left, mode="full")
-        lags = np.arange(-len(left) + 1, len(right))
+        # Normalize before correlation
+        left_norm = left.astype(float) / np.sqrt(np.sum(left.astype(float) ** 2))
+        right_norm = right.astype(float) / np.sqrt(np.sum(right.astype(float) ** 2))
+
+        # Cross-correlate
+        correlation = np.correlate(left_norm, right_norm, mode="full")
+        lags = np.arange(-len(right) + 1, len(left))
+
+        # Find peak
         peak_idx = np.argmax(np.abs(correlation))
         detected_lag = lags[peak_idx]
 
-        detected_delay_samples = detected_lag  # Remove the negative sign
-        expected_delay_samples = int(delay * self.sample_rate)
+        # The correlation finds lag = -441, which means right leads left by 441 samples
+        # This is correct behavior when right is delayed (has zeros at the beginning)
+        # So we expect negative lag
+        expected_delay_samples = -int(delay * self.sample_rate)
 
-        assert abs(detected_delay_samples - expected_delay_samples) <= 1
+        assert abs(detected_lag - expected_delay_samples) <= 1
 
     def test_multi_tone_generation(self):
         """Test multi-tone signal generation."""

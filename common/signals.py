@@ -96,33 +96,25 @@ class SignalGenerator:
         # Generate base signal
         base_signal = self.generate(config)
 
-        # Calculate delay in samples
-        delay_samples = int(abs(delay_seconds) * config.sample_rate)
+        # For stereo delay testing, both channels should have the same signal,
+        # but one is shifted in time
+        left = base_signal.copy()
+        right = base_signal.copy()
 
-        # Create delayed version
-        if delay_samples > 0:
-            # Create arrays of the same length
-            left = np.zeros_like(base_signal)
-            right = np.zeros_like(base_signal)
+        # Apply delay by rolling the array
+        delay_samples = int(delay_seconds * config.sample_rate)
 
-            if delay_seconds > 0:
-                # Right channel delayed - left starts immediately, right starts later
-                left[:] = base_signal
-                if delay_samples < len(base_signal):
-                    right[delay_samples:] = base_signal[:-delay_samples]
+        if delay_samples != 0:
+            # Positive delay means right is delayed (starts later)
+            # Roll right and zero out the beginning
+            right = np.roll(right, delay_samples)
+            if delay_samples > 0:
+                right[:delay_samples] = 0
             else:
-                # Left channel delayed - right starts immediately, left starts later
-                right[:] = base_signal
-                if delay_samples < len(base_signal):
-                    left[delay_samples:] = base_signal[:-delay_samples]
-        else:
-            # No delay
-            left = base_signal.copy()
-            right = base_signal.copy()
+                right[delay_samples:] = 0
 
         # Add uncorrelated noise to reduce correlation if needed
         if correlation < 1.0:
-            # Use a more accurate formula for mixing
             signal_weight = np.sqrt(correlation)
             noise_weight = np.sqrt(1 - correlation)
 
@@ -135,7 +127,7 @@ class SignalGenerator:
             )
             noise = self.generate(noise_config)
 
-            # Mix with proper weights (apply to the delayed channel)
+            # Apply noise to the channel that would typically have it (the delayed one)
             if delay_seconds >= 0:
                 right = (signal_weight * right + noise_weight * noise).astype(
                     right.dtype
