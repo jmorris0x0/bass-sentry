@@ -1,0 +1,32 @@
+# requirements.txt
+# Existing dependencies
+paho-mqtt
+zeroconf
+numpy
+ntplib
+sounddevice
+scipy
+graypy
+pandas
+influxdb-client
+jsonschema
+
+# Testing
+pytest>=7.0.0
+pytest-asyncio
+pytest-mock
+pytest-cov
+
+# Development
+black
+ruff
+mypy
+ipython
+
+# Additional signal processing
+librosa
+resampy
+
+# Plotting for development/debugging
+matplotlib
+
