@@ -147,6 +147,10 @@
                 "value": null
               },
               {
+                "color": "#EAB839",
+                "value": 95
+              },
+              {
                 "color": "red",
                 "value": 105
               }
@@ -298,6 +302,10 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "#EAB839",
+                "value": 83
               },
               {
                 "color": "red",
@@ -632,6 +640,10 @@
                 "value": null
               },
               {
+                "color": "#EAB839",
+                "value": 40
+              },
+              {
                 "color": "red",
                 "value": 44
               }
@@ -689,6 +701,6 @@
   "timezone": "",
   "title": "Overview",
   "uid": "a9738d58-f81c-4129-83a6-0b5fdc915d89",
-  "version": 53,
+  "version": 70,
   "weekStart": ""
 }
