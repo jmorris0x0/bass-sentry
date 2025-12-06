@@ -3,6 +3,7 @@ import numpy as np
 from scipy.signal import butter, lfilter
 import matplotlib.pyplot as plt
 
+
 # Bandpass filter
 def bandpass_filter(data, lowcut=15.0, highcut=80.0, fs=44100, order=5):
     nyq = 0.5 * fs

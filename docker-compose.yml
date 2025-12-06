@@ -10,8 +10,8 @@ x-environment: &global-environment
 services:
   master-node:
     build:
-      context: ./master-node
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: master-node/Dockerfile
     depends_on:
       - influxdb
     environment:

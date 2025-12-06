@@ -1,4 +1,4 @@
-__pycache__/ 
+__pycache__/
 __pycache__/
 *.pyc
 *.pyo
@@ -6,3 +6,24 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+
+# Test generated files
+TEST_RESULTS.md
+simulator/results/
+*.png
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.claude/

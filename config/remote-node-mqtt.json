@@ -1,0 +1,43 @@
+{
+  "_comment": "Bass Sentry Remote Node Configuration with MQTT Transport (WiFi)",
+  "_description": "Default configuration using MQTT over WiFi - works without transport section too",
+
+  "location": "dance-floor",
+
+  "_transport_note": "Transport section is OPTIONAL for MQTT - service discovery is used by default",
+  "transport": {
+    "type": "mqtt",
+    "mqtt": {
+      "broker": "192.168.1.100",
+      "port": 1883,
+      "qos": 1,
+      "keepalive": 60
+    }
+  },
+
+  "steps": {
+    "start": {
+      "processor": "GridDecimationResample",
+      "config": {
+        "target_rate": 1000
+      },
+      "next": "1"
+    },
+    "1": {
+      "processor": "BandpassFilter",
+      "config": {
+        "low": 35,
+        "high": 250
+      },
+      "next": "2"
+    },
+    "2": {
+      "processor": "DbfsMeasurement",
+      "config": {
+        "tags": ["reference"]
+      },
+      "next": "end"
+    },
+    "end": {}
+  }
+}

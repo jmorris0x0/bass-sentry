@@ -1,0 +1,44 @@
+{
+  "_comment": "Bass Sentry Remote Node Configuration with LoRa Transport",
+  "_description": "Example configuration for a remote node using LoRa communication",
+
+  "location": "dance-floor",
+
+  "transport": {
+    "type": "lora",
+    "lora": {
+      "frequency": 915,
+      "tx_power": 20,
+      "spreading_factor": 7,
+      "bandwidth": 125000,
+      "node_id": 1,
+      "gateway_id": 0
+    }
+  },
+
+  "steps": {
+    "start": {
+      "processor": "GridDecimationResample",
+      "config": {
+        "target_rate": 1000
+      },
+      "next": "1"
+    },
+    "1": {
+      "processor": "BandpassFilter",
+      "config": {
+        "low": 35,
+        "high": 250
+      },
+      "next": "2"
+    },
+    "2": {
+      "processor": "DbfsMeasurement",
+      "config": {
+        "tags": ["reference"]
+      },
+      "next": "end"
+    },
+    "end": {}
+  }
+}

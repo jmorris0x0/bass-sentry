@@ -5,3 +5,10 @@ ntplib
 sounddevice
 scipy
 graypy
+
+# Pluggable transport dependencies (optional - install only what you need)
+requests>=2.25.0  # For HTTP transport
+pyserial>=3.5  # For Serial transport
+cryptography>=3.4.0  # For LoRa encryption (AES-128)
+# adafruit-circuitpython-rfm9x  # For LoRa transport (requires LoRa HAT hardware)
+# Installation: pip install adafruit-circuitpython-rfm9x

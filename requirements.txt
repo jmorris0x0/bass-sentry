@@ -11,6 +11,11 @@ pandas
 influxdb-client
 jsonschema
 
+# Configuration management
+pydantic>=2.0
+pydantic-settings>=2.0
+python-dotenv
+
 # Testing
 pytest>=7.0.0
 pytest-asyncio

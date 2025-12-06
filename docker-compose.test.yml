@@ -1,0 +1,123 @@
+version: '3.8'
+
+# Integration test environment
+# Runs full Bass Sentry stack with simulated remote nodes
+
+services:
+  # InfluxDB for data storage
+  influxdb:
+    image: influxdb:2.7
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=password
+      - DOCKER_INFLUXDB_INIT_ORG=bass-sentry
+      - DOCKER_INFLUXDB_INIT_BUCKET=bass_sentry
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=test-token-12345
+    ports:
+      - "8086:8086"
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # MQTT broker
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Master node
+  master:
+    build:
+      context: ./master-node
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    environment:
+      - MQTT_BROKER=mosquitto
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=test-token-12345
+      - INFLUXDB_ORG=bass-sentry
+      - INFLUXDB_BUCKET=bass_sentry
+    volumes:
+      - ./master-node:/app
+      - ./common:/app/common:ro
+    command: python data_handler.py
+
+  # Simulated remote node 1 (dance floor)
+  remote_dance_floor:
+    build:
+      context: ./remote-node
+    depends_on:
+      - mosquitto
+    environment:
+      - MQTT_BROKER=mosquitto
+      - NODE_ID=dance_floor
+      - SIMULATED=true
+      - SIGNAL_DELAY_MS=32.6
+      - SIGNAL_ATTENUATION=0.89
+    volumes:
+      - ./remote-node:/app
+      - ./common:/app/common:ro
+      - ./simulator:/app/simulator:ro
+    command: python /app/simulator/simulated_remote_node.py --node-id dance_floor --delay-ms 32.6
+
+  # Simulated remote node 2 (back bar)
+  remote_back_bar:
+    build:
+      context: ./remote-node
+    depends_on:
+      - mosquitto
+    environment:
+      - MQTT_BROKER=mosquitto
+      - NODE_ID=back_bar
+      - SIMULATED=true
+      - SIGNAL_DELAY_MS=65.2
+      - SIGNAL_ATTENUATION=0.45
+    volumes:
+      - ./remote-node:/app
+      - ./common:/app/common:ro
+      - ./simulator:/app/simulator:ro
+    command: python /app/simulator/simulated_remote_node.py --node-id back_bar --delay-ms 65.2
+
+  # Test runner
+  test_runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    depends_on:
+      - master
+      - remote_dance_floor
+      - remote_back_bar
+    environment:
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=test-token-12345
+      - INFLUXDB_ORG=bass-sentry
+      - INFLUXDB_BUCKET=bass_sentry
+      - MQTT_BROKER=mosquitto
+    volumes:
+      - ./tests:/tests
+      - ./common:/common:ro
+    command: >
+      bash -c "
+      echo 'Waiting for system to stabilize...' &&
+      sleep 30 &&
+      echo 'Running integration tests...' &&
+      pytest /tests/integration/ -v --tb=short
+      "
+
+networks:
+  default:
+    name: bass-sentry-test

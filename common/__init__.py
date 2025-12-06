@@ -4,8 +4,8 @@
 from .signals import SignalGenerator, SignalConfig, SignalType, generate_test_chunk
 
 __all__ = [
-    "SignalGenerator", 
-    "SignalConfig", 
-    "SignalType", 
+    "SignalGenerator",
+    "SignalConfig",
+    "SignalType",
     "generate_test_chunk",
 ]

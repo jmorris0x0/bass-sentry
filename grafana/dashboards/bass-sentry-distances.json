@@ -1,0 +1,179 @@
+{
+  "dashboard": {
+    "title": "Bass Sentry - Physical Distances",
+    "tags": ["bass-sentry", "correlation", "distances"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "5s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Distance from Stage (meters)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 0, "w": 24, "h": 8},
+        "targets": [
+          {
+            "refId": "A",
+            "query": "from(bucket: \"bass_sentry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"correlation\")\n  |> filter(fn: (r) => r[\"_field\"] == \"delay_ms\")\n  |> map(fn: (r) => ({r with _value: r._value * 0.343}))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean)",
+            "datasource": "InfluxDB"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "lengthm",
+            "decimals": 1,
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "lineWidth": 2,
+              "fillOpacity": 10
+            }
+          }
+        },
+        "options": {
+          "tooltip": {"mode": "multi"},
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "calcs": ["mean", "lastNotNull", "max"]
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Time Delay (milliseconds)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 8, "w": 12, "h": 6},
+        "targets": [
+          {
+            "refId": "A",
+            "query": "from(bucket: \"bass_sentry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"correlation\")\n  |> filter(fn: (r) => r[\"_field\"] == \"delay_ms\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean)",
+            "datasource": "InfluxDB"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "decimals": 1,
+            "color": {"mode": "palette-classic"}
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Correlation Strength (dB)",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 6},
+        "targets": [
+          {
+            "refId": "A",
+            "query": "from(bucket: \"bass_sentry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"correlation\")\n  |> filter(fn: (r) => r[\"_field\"] == \"db\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean)",
+            "datasource": "InfluxDB"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "dB",
+            "decimals": 1,
+            "color": {"mode": "palette-classic"}
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Data Quality (%)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 14, "w": 12, "h": 6},
+        "targets": [
+          {
+            "refId": "A",
+            "query": "from(bucket: \"bass_sentry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"correlation\")\n  |> filter(fn: (r) => r[\"_field\"] == \"data_quality\")\n  |> map(fn: (r) => ({r with _value: r._value * 100.0}))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean)",
+            "datasource": "InfluxDB"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 1,
+            "color": {"mode": "palette-classic"},
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 60, "color": "yellow"},
+                {"value": 90, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Confidence Score",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 14, "w": 12, "h": 6},
+        "targets": [
+          {
+            "refId": "A",
+            "query": "from(bucket: \"bass_sentry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"correlation\")\n  |> filter(fn: (r) => r[\"_field\"] == \"confidence\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean)",
+            "datasource": "InfluxDB"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "decimals": 2,
+            "color": {"mode": "palette-classic"},
+            "min": 0,
+            "max": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 0.5, "color": "yellow"},
+                {"value": 0.8, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Current Distances (Stat)",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 20, "w": 24, "h": 4},
+        "targets": [
+          {
+            "refId": "A",
+            "query": "from(bucket: \"bass_sentry\")\n  |> range(start: -1m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"correlation\")\n  |> filter(fn: (r) => r[\"_field\"] == \"delay_ms\")\n  |> last()\n  |> map(fn: (r) => ({r with _value: r._value * 0.343}))",
+            "datasource": "InfluxDB"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "lengthm",
+            "decimals": 1,
+            "color": {"mode": "value"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 50, "color": "yellow"},
+                {"value": 100, "color": "red"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "orientation": "horizontal",
+          "textMode": "value_and_name",
+          "colorMode": "background",
+          "graphMode": "none"
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}

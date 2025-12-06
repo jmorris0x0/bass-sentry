@@ -1,0 +1,17 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install test dependencies
+RUN pip install --no-cache-dir \
+    pytest \
+    pytest-timeout \
+    influxdb-client \
+    paho-mqtt \
+    numpy \
+    scipy
+
+COPY tests/ /tests/
+COPY common/ /common/
+
+CMD ["pytest", "/tests/integration/", "-v"]

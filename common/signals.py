@@ -198,8 +198,14 @@ class SignalGenerator:
         noise = self.generate(noise_config)
         noise_float = noise.astype(float) / (2 ** (noise_config.bit_depth - 1) - 1)
 
-        # Trim noise to match delayed source length
-        noise_float = noise_float[: len(delayed_source_float)]
+        # Ensure noise matches delayed source length exactly
+        if len(noise_float) > len(delayed_source_float):
+            noise_float = noise_float[: len(delayed_source_float)]
+        elif len(noise_float) < len(delayed_source_float):
+            # Pad with additional noise if needed
+            padding_length = len(delayed_source_float) - len(noise_float)
+            padding = np.random.randn(padding_length)
+            noise_float = np.concatenate([noise_float, padding])
 
         # Calculate attenuation based on SNR if provided
         if snr_db is not None:

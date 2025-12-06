@@ -1,0 +1,59 @@
+{
+  "_comment": "Bass Sentry LoRa Configuration - Recommended for venues with WiFi issues",
+  "_description": "Balanced configuration: good range (2-5km) with fast data rate",
+
+  "transport": {
+    "type": "lora",
+    "lora": {
+      "frequency": 915,
+      "_frequency_comment": "915 MHz for US/Canada. Use 868 for Europe, 433 for Asia",
+
+      "tx_power": 20,
+      "_tx_power_comment": "20 dBm = good range. Max is 23 dBm (longer range, more power)",
+
+      "spreading_factor": 7,
+      "_spreading_factor_comment": "SF7 = fast (2-5km range). Use SF10-12 for longer range (5-20km)",
+
+      "bandwidth": 125000,
+      "_bandwidth_comment": "125 kHz standard bandwidth",
+
+      "coding_rate": 5,
+      "_coding_rate_comment": "5 = good error correction",
+
+      "node_id": 1,
+      "_node_id_comment": "Change this for each remote node: 1, 2, 3, etc.",
+
+      "gateway_id": 0,
+      "_gateway_id_comment": "Master node is gateway (ID 0)",
+
+      "max_packet_size": 250
+    }
+  },
+
+  "_usage": {
+    "remote_nodes": "Set node_id to 1, 2, 3, ... for each remote node",
+    "master_node": "Set node_id to 0 (gateway)",
+    "range_tradeoff": "SF7 = 2-5km fast. SF12 = 5-20km slower (but still fast enough for bass!)",
+    "power_tradeoff": "20 dBm = good range. 23 dBm = max range (uses more battery)"
+  },
+
+  "_typical_ranges": {
+    "indoor_venue": "500m-1km (SF7), 1-2km (SF12)",
+    "outdoor_festival": "2-5km (SF7), 5-10km (SF12)",
+    "rural_open_field": "5-10km (SF7), 10-20km (SF12)"
+  },
+
+  "_antenna_tips": {
+    "placement": "Mount antenna vertically, as high as possible",
+    "line_of_sight": "Best performance with clear line of sight",
+    "obstacles": "LoRa penetrates concrete/metal better than WiFi",
+    "never": "NEVER power on without antenna attached!"
+  },
+
+  "_troubleshooting": {
+    "short_range": "Increase spreading_factor (7→10→12) or tx_power (20→23)",
+    "slow_updates": "Decrease spreading_factor (12→10→7)",
+    "no_connection": "Check frequency matches region (915 US, 868 EU, 433 Asia)",
+    "intermittent": "Elevate antenna, check for obstacles"
+  }
+}

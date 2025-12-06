@@ -1,0 +1,69 @@
+{
+  "_comment": "LoRa to MQTT Gateway Configuration",
+  "_description": "Bridges LoRa remote nodes to MQTT master node (Mac/PC)",
+
+  "_architecture": "Remote Nodes (LoRa) → Gateway Pi → MQTT → Master Node (Mac)",
+
+  "lora": {
+    "frequency": 915,
+    "_frequency_comment": "915 MHz for US/Canada. Use 868 for Europe, 433 for Asia",
+
+    "tx_power": 20,
+    "_tx_power_comment": "20 dBm = good range. Max 23 dBm",
+
+    "spreading_factor": 7,
+    "_spreading_factor_comment": "SF7 = fast (2-5km). SF12 = long range (5-20km)",
+
+    "bandwidth": 125000,
+    "_bandwidth_comment": "125 kHz standard",
+
+    "coding_rate": 5,
+    "_coding_rate_comment": "5 = good error correction",
+
+    "node_id": 0,
+    "_node_id_comment": "Gateway is always node ID 0",
+
+    "gateway_id": 0,
+    "_gateway_id_comment": "Gateway is its own gateway"
+  },
+
+  "mqtt": {
+    "broker": "192.168.1.100",
+    "_broker_comment": "IP address of Mac/PC running master node",
+
+    "port": 1883,
+    "_port_comment": "Standard MQTT port",
+
+    "qos": 1,
+    "_qos_comment": "QoS 1 = at-least-once delivery (recommended)",
+
+    "keepalive": 60,
+    "_keepalive_comment": "Keepalive interval in seconds"
+  },
+
+  "_usage": {
+    "run_command": "python gateway/lora_mqtt_gateway.py --config config/gateway-lora-mqtt.json",
+    "or_command_line": "python gateway/lora_mqtt_gateway.py --lora-freq 915 --mqtt-broker 192.168.1.100"
+  },
+
+  "_hardware": {
+    "gateway_pi": "Raspberry Pi Zero W + LoRa HAT ($60 total)",
+    "location": "Near Mac/PC with WiFi/Ethernet access",
+    "antenna": "Included with LoRa HAT - mount vertically"
+  },
+
+  "_setup_steps": [
+    "1. Install LoRa HAT on Raspberry Pi Zero W",
+    "2. Install software: pip install adafruit-circuitpython-rfm9x",
+    "3. Update 'broker' IP to your Mac's IP address",
+    "4. Run: python gateway/lora_mqtt_gateway.py --config config/gateway-lora-mqtt.json",
+    "5. Optional: Set up systemd service for auto-start"
+  ],
+
+  "_troubleshooting": {
+    "no_lora_messages": "Check frequency matches remote nodes (915/868/433)",
+    "no_mqtt_connection": "Check Mac IP address and firewall (allow port 1883)",
+    "poor_range": "Increase spreading_factor (7→10→12) or elevate antenna",
+    "check_logs": "Gateway shows RSSI/SNR for each LoRa packet received"
+  }
+}

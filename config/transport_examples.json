@@ -1,0 +1,224 @@
+{
+  "_comment": "Bass Sentry Transport Configuration Examples",
+  "_description": "Copy the relevant transport section to your config.json file",
+
+  "mqtt_local": {
+    "_use_case": "Local WiFi network (most common)",
+    "_range": "50-100m indoor",
+    "_hardware": "None (built-in WiFi)",
+    "_cost": "$0",
+    "transport": {
+      "type": "mqtt",
+      "mqtt": {
+        "broker": "192.168.1.100",
+        "port": 1883,
+        "qos": 1,
+        "keepalive": 60
+      }
+    }
+  },
+
+  "mqtt_authenticated": {
+    "_use_case": "Secure WiFi network with authentication",
+    "_range": "50-100m indoor",
+    "_hardware": "None (built-in WiFi)",
+    "_cost": "$0",
+    "transport": {
+      "type": "mqtt",
+      "mqtt": {
+        "broker": "mqtt.example.com",
+        "port": 1883,
+        "qos": 1,
+        "username": "bass-sentry",
+        "password": "your-password-here",
+        "keepalive": 60
+      }
+    }
+  },
+
+  "lora_us": {
+    "_use_case": "Outdoor festival, large venue, no WiFi (US/Canada)",
+    "_range": "2-10km outdoor",
+    "_hardware": "LoRa HAT ($25) - Dragino/RAK/Adafruit",
+    "_cost": "$25 per node",
+    "_frequency": "915 MHz (US/Canada)",
+    "transport": {
+      "type": "lora",
+      "lora": {
+        "frequency": 915,
+        "tx_power": 20,
+        "spreading_factor": 7,
+        "bandwidth": 125000,
+        "coding_rate": 5,
+        "node_id": 1,
+        "gateway_id": 0,
+        "max_packet_size": 250
+      }
+    }
+  },
+
+  "lora_eu": {
+    "_use_case": "Outdoor festival, large venue, no WiFi (Europe)",
+    "_range": "2-10km outdoor",
+    "_hardware": "LoRa HAT ($25)",
+    "_cost": "$25 per node",
+    "_frequency": "868 MHz (Europe)",
+    "transport": {
+      "type": "lora",
+      "lora": {
+        "frequency": 868,
+        "tx_power": 20,
+        "spreading_factor": 7,
+        "bandwidth": 125000,
+        "coding_rate": 5,
+        "node_id": 1,
+        "gateway_id": 0,
+        "max_packet_size": 250
+      }
+    }
+  },
+
+  "lora_asia": {
+    "_use_case": "Outdoor festival, large venue, no WiFi (Asia)",
+    "_range": "2-10km outdoor",
+    "_hardware": "LoRa HAT ($25)",
+    "_cost": "$25 per node",
+    "_frequency": "433 MHz (Asia)",
+    "transport": {
+      "type": "lora",
+      "lora": {
+        "frequency": 433,
+        "tx_power": 20,
+        "spreading_factor": 7,
+        "bandwidth": 125000,
+        "coding_rate": 5,
+        "node_id": 1,
+        "gateway_id": 0,
+        "max_packet_size": 250
+      }
+    }
+  },
+
+  "lora_long_range": {
+    "_use_case": "Maximum range (slower, but reaches farther)",
+    "_range": "5-20km outdoor",
+    "_hardware": "LoRa HAT ($25)",
+    "_cost": "$25 per node",
+    "_note": "SF12 = 4x range of SF7, but 64x slower. Still fast enough for bass (16 kb/s).",
+    "transport": {
+      "type": "lora",
+      "lora": {
+        "frequency": 915,
+        "tx_power": 23,
+        "spreading_factor": 12,
+        "bandwidth": 125000,
+        "coding_rate": 5,
+        "node_id": 1,
+        "gateway_id": 0,
+        "max_packet_size": 250
+      }
+    }
+  },
+
+  "http_cellular": {
+    "_use_case": "Remote monitoring via cellular (neighbor's house, internet)",
+    "_range": "Unlimited (wherever you have internet)",
+    "_hardware": "None (uses built-in networking)",
+    "_cost": "$0 (plus data plan)",
+    "_requires": "HTTP server running on master node or cloud",
+    "transport": {
+      "type": "http",
+      "http": {
+        "base_url": "http://192.168.1.100:8080",
+        "node_id": "remote-1",
+        "poll_interval": 0.5,
+        "timeout": 5
+      }
+    }
+  },
+
+  "http_authenticated": {
+    "_use_case": "Secure remote monitoring (cloud deployment)",
+    "_range": "Unlimited",
+    "_hardware": "None",
+    "_cost": "$0 (plus data/hosting)",
+    "transport": {
+      "type": "http",
+      "http": {
+        "base_url": "https://bass-sentry.example.com",
+        "node_id": "remote-1",
+        "poll_interval": 0.5,
+        "timeout": 5,
+        "auth_token": "your-secret-token-here"
+      }
+    }
+  },
+
+  "serial_usb": {
+    "_use_case": "Direct wired connection (testing, debugging)",
+    "_range": "5m (USB cable length)",
+    "_hardware": "USB cable",
+    "_cost": "$0",
+    "_note": "Useful for development and troubleshooting",
+    "transport": {
+      "type": "serial",
+      "serial": {
+        "port": "/dev/ttyUSB0",
+        "baudrate": 115200,
+        "timeout": 1.0,
+        "node_id": 1
+      }
+    }
+  },
+
+  "serial_windows": {
+    "_use_case": "Direct wired connection (Windows)",
+    "_range": "5m",
+    "_hardware": "USB cable",
+    "_cost": "$0",
+    "transport": {
+      "type": "serial",
+      "serial": {
+        "port": "COM3",
+        "baudrate": 115200,
+        "timeout": 1.0,
+        "node_id": 1
+      }
+    }
+  },
+
+  "_choosing_guide": {
+    "indoor_small_venue": "Use MQTT (WiFi)",
+    "indoor_large_venue": "Use MQTT if WiFi coverage is good, otherwise LoRa",
+    "outdoor_festival": "Use LoRa (2-10km range)",
+    "concrete_building": "Use LoRa (better penetration than WiFi)",
+    "remote_monitoring": "Use HTTP (cellular/internet)",
+    "testing_development": "Use Serial (wired, reliable)",
+    "no_internet": "Use LoRa or Serial",
+    "multiple_buildings": "Use LoRa (up to 10km)",
+    "neighbor_house": "Use HTTP (cellular) or LoRa (if within 2-10km)"
+  },
+
+  "_bandwidth_requirements": {
+    "per_node": "16 kb/s (128 kbps)",
+    "mqtt": "1-100 Mb/s (WiFi)",
+    "lora": "0.3-50 kb/s (tight but sufficient)",
+    "http": "1-100 Mb/s (cellular/internet)",
+    "serial": "9.6-115.2 kb/s (sufficient)"
+  },
+
+  "_hardware_costs": {
+    "mqtt": "$0 (built-in WiFi)",
+    "lora": "$25 per node (Dragino LoRa HAT)",
+    "http": "$0 (built-in networking)",
+    "serial": "$0-$10 (USB cable or adapter)"
+  },
+
+  "_range_comparison": {
+    "mqtt": "50-100m indoor, 200-300m outdoor",
+    "lora_sf7": "1-2km urban, 2-5km rural",
+    "lora_sf12": "2-5km urban, 5-20km rural",
+    "http": "Unlimited (wherever internet available)",
+    "serial": "5m USB, 15m RS-232, 1000m+ RS-485"
+  }
+}

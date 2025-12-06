@@ -4,3 +4,9 @@ influxdb-client
 zeroconf==0.33.4
 jsonschema
 scipy
+
+# Pluggable transport dependencies (optional)
+requests>=2.25.0
+pyserial>=3.5
+cryptography>=3.4.0  # For LoRa encryption (AES-128)
+# adafruit-circuitpython-rfm9x  # Only needed for LoRa hardware (Raspberry Pi with LoRa HAT)

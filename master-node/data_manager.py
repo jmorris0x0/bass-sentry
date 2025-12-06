@@ -16,14 +16,46 @@ logger = logging.getLogger(__name__)
 
 class DataManager:
     def __init__(
-        self, influx_url, influx_token, influx_bucket, influx_org, mqtt_host, mqtt_port
+        self,
+        influx_url,
+        influx_token,
+        influx_bucket,
+        influx_org,
+        mqtt_host=None,
+        mqtt_port=None,
+        transport_config=None,
     ):
+        """
+        Initialize DataManager.
+
+        Args:
+            influx_url: InfluxDB URL
+            influx_token: InfluxDB token
+            influx_bucket: InfluxDB bucket
+            influx_org: InfluxDB org
+            mqtt_host: MQTT broker host (legacy, for backward compatibility)
+            mqtt_port: MQTT broker port (legacy, for backward compatibility)
+            transport_config: Transport configuration dict (if provided, overrides MQTT)
+        """
         self.influx_client = self._connect_to_influx(
             influx_url, influx_token, influx_bucket, influx_org
         )
         self.write_api = self.influx_client.write_api(write_options=SYNCHRONOUS)
         self.write_api.errors_callback = self.write_errors_callback
-        self.mqtt_client = self._connect_to_mqtt(mqtt_host, mqtt_port)
+
+        # Use pluggable transport if config provided, otherwise legacy MQTT
+        self.use_transport = transport_config is not None
+        if self.use_transport:
+            logger.info(
+                f"Using pluggable transport: {transport_config.get('type', 'unknown')}"
+            )
+            self.transport = self._create_transport(transport_config)
+            self.mqtt_client = None
+        else:
+            logger.info("Using legacy MQTT")
+            self.mqtt_client = self._connect_to_mqtt(mqtt_host, mqtt_port)
+            self.transport = None
+
         self.healthy_nodes = set()
         self.last_health_check = {}
         self.lock = threading.Lock()
@@ -31,24 +63,77 @@ class DataManager:
         self.subscribed_topics = set()
         self.data_handler = DataHandler()
 
+    def _create_transport(self, config_dict):
+        """Create transport from configuration dictionary."""
+        try:
+            # Add parent directory to path for common imports
+            parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if parent_dir not in sys.path:
+                sys.path.insert(0, parent_dir)
+
+            from common.transport import TransportConfig, get_transport
+
+            config = TransportConfig.from_dict(config_dict)
+            return get_transport(config)
+        except ImportError as e:
+            logger.error(f"Failed to import transport module: {e}")
+            logger.error("Transport layer requires 'common' module to be accessible")
+            logger.error(
+                "For Docker deployments, ensure 'common/' is mounted or copied into container"
+            )
+            raise
+        except Exception as e:
+            logger.error(f"Failed to create transport: {e}")
+            raise
+
     def start(self):
         if not self.influx_client:
             logger.error("Could not connect to InfluxDB. Exiting...")
             sys.exit(1)
 
-        self.mqtt_client.on_message = lambda client, userdata, message: self.on_message(
-            client, userdata, message
-        )
+        if self.use_transport:
+            # Connect transport
+            if not self.transport.connect():
+                logger.error("Failed to connect transport. Exiting...")
+                sys.exit(1)
 
-        self.mqtt_loop_start()
+            # Subscribe to all topics
+            self.transport.subscribe("#", self._transport_callback)
+        else:
+            # Legacy MQTT
+            self.mqtt_client.on_message = (
+                lambda client, userdata, message: self.on_message(
+                    client, userdata, message
+                )
+            )
+            self.mqtt_loop_start()
 
         threading.Thread(target=self.check_unhealthy_nodes, daemon=True).start()
-        threading.Thread(
-            target=self.subscribe_to_topics_periodically, daemon=True
-        ).start()
+
+        if not self.use_transport:
+            # Only needed for MQTT (transport handles subscriptions automatically)
+            threading.Thread(
+                target=self.subscribe_to_topics_periodically, daemon=True
+            ).start()
 
         logger.info("Master node started successfully.")
         logger.info("Press Ctrl+C to exit...")
+
+    def _transport_callback(self, topic, data):
+        """Callback for transport layer messages."""
+        try:
+            # If data is already a dict, use it directly; otherwise parse JSON
+            payload = data if isinstance(data, dict) else json.loads(data)
+
+            # Handle different message types
+            if "status" in payload:
+                self.handle_connection_status(payload)
+            elif "health_check" in payload:
+                self.handle_health_check(payload)
+            else:
+                self.handle_data_point(topic, payload)
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.error(f"Failed to decode JSON from payload: {e}")
 
     def subscribe_to_topics_periodically(self):  # Corrected
         while True:
@@ -100,8 +185,14 @@ class DataManager:
         self.mqtt_client.loop_start()
 
     def mqtt_loop_stop(self):
-        self.mqtt_client.loop_stop()
-        self.mqtt_client.disconnect()
+        """Stop MQTT or transport connection."""
+        if self.use_transport:
+            if self.transport:
+                self.transport.disconnect()
+        else:
+            if self.mqtt_client:
+                self.mqtt_client.loop_stop()
+                self.mqtt_client.disconnect()
 
     def subscribe_to_topics(self):
         topics = self.get_all_topics()

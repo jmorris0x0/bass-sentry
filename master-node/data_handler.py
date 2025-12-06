@@ -98,11 +98,34 @@ class DataHandler:
             point.field("value", value)
             points.append(point)
         elif data_type == "audio_chunk":
-            for remote_id, db in processed_data:
+            # processed_data is a list of tuples: (remote_id, db, tau, correlation_coef, confidence, data_quality)
+            for result in processed_data:
+                # Handle both old format (4 values) and new format (6 values)
+                if len(result) == 4:
+                    remote_id, db, tau, correlation_coef = result
+                    confidence = correlation_coef  # Fallback
+                    data_quality = 1.0  # Assume perfect
+                else:
+                    remote_id, db, tau, correlation_coef, confidence, data_quality = (
+                        result
+                    )
+
                 point = Point("cross_correlation")
                 point.tag("remote_id", remote_id)
-                # ... (add other tags and fields as needed)
                 point.field("db", db)
+                point.field("delay_seconds", tau)
+                point.field("delay_ms", tau * 1000)
+                point.field("correlation_coef", correlation_coef)
+                point.field("confidence", confidence)
+                point.field("data_quality", data_quality)
+
+                # Use the timestamp from the original data
+                timestamp = data.get("timestamp", 0)
+                time_precision = data.get("time_precision", "s")
+                write_precision = PRECISION_MAP.get(time_precision)
+                if write_precision is not None:
+                    point.time(timestamp, write_precision)
+
                 points.append(point)
 
         logger.debug(f"Created Point objects: {points}")
@@ -176,6 +199,10 @@ class ScalarTS(DataProcessor):
 
 class ChunkToCCStream(DataProcessor):
     BUFFER_SECONDS = 2
+    MAX_GAP_INTERPOLATE = (
+        2  # Maximum number of consecutive missing chunks to interpolate
+    )
+    MIN_DATA_QUALITY = 0.6  # Minimum 60% good data required for correlation
 
     def __init__(self):
         self.reference_stream = None
@@ -196,36 +223,269 @@ class ChunkToCCStream(DataProcessor):
 
         if "reference" in tags:
             self.process_reference_stream(data, max_buffer_size)
+            # Reference stream update doesn't produce correlation results
+            return None
         else:
             self.process_remote_stream(data, max_buffer_size)
 
-        if self.reference_stream is not None:
-            for remote_id, remote_stream in self.remote_streams.items():
-                ref_timestamps, ref_audio_data = self.reference_stream
-                remote_timestamps, remote_audio_data = remote_stream
-                common_timestamps = np.intersect1d(ref_timestamps, remote_timestamps)
+        # Compute correlations for all remote streams against reference
+        if self.reference_stream is None:
+            logger.debug("No reference stream available yet for correlation")
+            return None
 
-                if len(common_timestamps) > 1:
-                    timestamp_diffs = np.diff(common_timestamps)
-                    expected_diff = 1 / sample_rate
-                    if np.all(np.isclose(timestamp_diffs, expected_diff, atol=1e-6)):
-                        ref_audio_data_aligned = ref_audio_data[
-                            np.isin(ref_timestamps, common_timestamps)
-                        ]
-                        remote_audio_data_aligned = remote_audio_data[
-                            np.isin(remote_timestamps, common_timestamps)
-                        ]
+        results = []
+        ref_timestamps, ref_audio_data = self.reference_stream
 
-                        if (
-                            ref_audio_data_aligned.size > 0
-                            and remote_audio_data_aligned.size > 0
-                        ):
-                            db = self.cross_correlate(
-                                ref_audio_data_aligned,
-                                remote_audio_data_aligned,
-                                sample_rate,
-                            )
-                            return db
+        for remote_id, remote_stream in self.remote_streams.items():
+            remote_timestamps, remote_audio_data = remote_stream
+
+            # Align audio with gap interpolation
+            chunk_size = len(data["data"])
+            ref_aligned, remote_aligned, data_quality = self._align_audio_with_gaps(
+                ref_timestamps,
+                ref_audio_data,
+                remote_timestamps,
+                remote_audio_data,
+                chunk_size,
+            )
+
+            if ref_aligned is None or remote_aligned is None:
+                logger.debug(f"Could not align data for {remote_id}")
+                continue
+
+            # Check data quality
+            if data_quality < self.MIN_DATA_QUALITY:
+                logger.warning(
+                    f"Data quality too low for {remote_id}: {data_quality:.1%} "
+                    f"(minimum {self.MIN_DATA_QUALITY:.1%})"
+                )
+                continue
+
+            # Perform cross-correlation
+            try:
+                db, tau, correlation_coef = self.rcc(
+                    ref_aligned,
+                    remote_aligned,
+                    sample_rate,
+                )
+
+                # Adjust confidence based on data quality
+                confidence = correlation_coef * data_quality
+
+                logger.info(
+                    f"Correlation for {remote_id}: {db:.2f} dB, "
+                    f"delay: {tau*1000:.1f}ms, r={correlation_coef:.3f}, "
+                    f"quality={data_quality:.1%}, confidence={confidence:.3f}"
+                )
+                results.append(
+                    (remote_id, db, tau, correlation_coef, confidence, data_quality)
+                )
+            except Exception as e:
+                logger.error(f"Correlation failed for {remote_id}: {e}")
+                continue
+
+        # Return results or None if no successful correlations
+        return results if results else None
+
+    def _align_audio_with_gaps(
+        self,
+        ref_timestamps,
+        ref_audio_data,
+        remote_timestamps,
+        remote_audio_data,
+        chunk_size,
+    ):
+        """Align audio data, interpolating small gaps where possible.
+
+        Args:
+            ref_timestamps: Reference chunk timestamps
+            ref_audio_data: Reference audio (concatenated chunks)
+            remote_timestamps: Remote chunk timestamps
+            remote_audio_data: Remote audio (concatenated chunks)
+            chunk_size: Size of one chunk in samples
+
+        Returns:
+            Tuple of (ref_aligned, remote_aligned, data_quality) or (None, None, 0)
+            data_quality is between 0 and 1, indicating percentage of good data
+        """
+        # Find all expected timestamps (union of both streams)
+        all_timestamps = sorted(set(ref_timestamps) | set(remote_timestamps))
+
+        if len(all_timestamps) == 0:
+            return None, None, 0
+
+        ref_aligned_list = []
+        remote_aligned_list = []
+        quality_flags = []
+
+        for i, ts in enumerate(all_timestamps):
+            ref_has = ts in ref_timestamps
+            remote_has = ts in remote_timestamps
+
+            if ref_has and remote_has:
+                # Both present - perfect!
+                ref_chunk = self._get_chunk(
+                    ref_audio_data, ref_timestamps, ts, chunk_size
+                )
+                remote_chunk = self._get_chunk(
+                    remote_audio_data, remote_timestamps, ts, chunk_size
+                )
+                if ref_chunk is not None and remote_chunk is not None:
+                    ref_aligned_list.append(ref_chunk)
+                    remote_aligned_list.append(remote_chunk)
+                    quality_flags.append("good")
+
+            elif not ref_has and remote_has:
+                # Reference missing - try to interpolate
+                interpolated = self._interpolate_missing_chunk(
+                    ref_audio_data, ref_timestamps, ts, chunk_size, all_timestamps, i
+                )
+                if interpolated is not None:
+                    remote_chunk = self._get_chunk(
+                        remote_audio_data, remote_timestamps, ts, chunk_size
+                    )
+                    if remote_chunk is not None:
+                        ref_aligned_list.append(interpolated)
+                        remote_aligned_list.append(remote_chunk)
+                        quality_flags.append("ref_interpolated")
+                else:
+                    quality_flags.append("ref_missing")
+
+            elif ref_has and not remote_has:
+                # Remote missing - try to interpolate
+                interpolated = self._interpolate_missing_chunk(
+                    remote_audio_data,
+                    remote_timestamps,
+                    ts,
+                    chunk_size,
+                    all_timestamps,
+                    i,
+                )
+                if interpolated is not None:
+                    ref_chunk = self._get_chunk(
+                        ref_audio_data, ref_timestamps, ts, chunk_size
+                    )
+                    if ref_chunk is not None:
+                        ref_aligned_list.append(ref_chunk)
+                        remote_aligned_list.append(interpolated)
+                        quality_flags.append("remote_interpolated")
+                else:
+                    quality_flags.append("remote_missing")
+
+        # Calculate data quality
+        if len(quality_flags) == 0:
+            return None, None, 0
+
+        good = quality_flags.count("good")
+        interpolated = quality_flags.count("ref_interpolated") + quality_flags.count(
+            "remote_interpolated"
+        )
+        missing = quality_flags.count("ref_missing") + quality_flags.count(
+            "remote_missing"
+        )
+
+        # Quality: good chunks = 1.0, interpolated = 0.7, missing = 0.0
+        total = len(quality_flags)
+        data_quality = (good + interpolated * 0.7) / total if total > 0 else 0
+
+        # Log quality breakdown
+        if interpolated > 0 or missing > 0:
+            logger.debug(
+                f"Alignment quality: good={good}, interpolated={interpolated}, "
+                f"missing={missing}, quality={data_quality:.1%}"
+            )
+
+        if len(ref_aligned_list) == 0 or len(remote_aligned_list) == 0:
+            return None, None, 0
+
+        return (
+            np.concatenate(ref_aligned_list),
+            np.concatenate(remote_aligned_list),
+            data_quality,
+        )
+
+    def _get_chunk(self, audio_data, timestamps, target_ts, chunk_size):
+        """Extract a chunk from audio data at given timestamp."""
+        try:
+            idx = np.where(timestamps == target_ts)[0][0]
+            start = idx * chunk_size
+            end = start + chunk_size
+
+            if end <= len(audio_data):
+                return audio_data[start:end]
+        except (IndexError, ValueError):
+            pass
+
+        return None
+
+    def _interpolate_missing_chunk(
+        self, audio_data, timestamps, target_ts, chunk_size, all_timestamps, target_idx
+    ):
+        """Interpolate a missing chunk using neighbors.
+
+        Returns None if gap is too large or neighbors not available.
+        """
+        # Find neighbors
+        prev_ts = None
+        next_ts = None
+
+        # Look backwards for previous chunk
+        for i in range(target_idx - 1, -1, -1):
+            if all_timestamps[i] in timestamps:
+                prev_ts = all_timestamps[i]
+                gap_before = target_idx - i
+                break
+
+        # Look forward for next chunk
+        for i in range(target_idx + 1, len(all_timestamps)):
+            if all_timestamps[i] in timestamps:
+                next_ts = all_timestamps[i]
+                gap_after = i - target_idx
+                break
+
+        # Check if gaps are small enough
+        if (
+            prev_ts is not None
+            and (gap_before := target_idx - all_timestamps.index(prev_ts))
+            > self.MAX_GAP_INTERPOLATE
+        ):
+            prev_ts = None
+
+        if (
+            next_ts is not None
+            and (gap_after := all_timestamps.index(next_ts) - target_idx)
+            > self.MAX_GAP_INTERPOLATE
+        ):
+            next_ts = None
+
+        # Need at least one neighbor
+        if prev_ts is None and next_ts is None:
+            return None
+
+        # Get neighbor chunks
+        prev_chunk = (
+            self._get_chunk(audio_data, timestamps, prev_ts, chunk_size)
+            if prev_ts
+            else None
+        )
+        next_chunk = (
+            self._get_chunk(audio_data, timestamps, next_ts, chunk_size)
+            if next_ts
+            else None
+        )
+
+        # Interpolate based on available neighbors
+        if prev_chunk is not None and next_chunk is not None:
+            # Linear interpolation between both neighbors
+            return (prev_chunk.astype(np.float32) + next_chunk.astype(np.float32)) / 2
+        elif prev_chunk is not None:
+            # Use previous chunk (hold)
+            return prev_chunk.copy()
+        elif next_chunk is not None:
+            # Use next chunk (pre-fill)
+            return next_chunk.copy()
+
+        return None
 
     def process_reference_stream(self, data: Dict[str, Any], max_buffer_size: int):
         buffer = self.buffers.setdefault("reference", [])
@@ -264,48 +524,76 @@ class ChunkToCCStream(DataProcessor):
                 np.concatenate(audio_data_chunks),
             )
 
-    def cross_correlate(self, ref_stream, remote_stream, sample_rate):
-        ref_timestamps, ref_audio_data = ref_stream
-        remote_timestamps, remote_audio_data = remote_stream
-
-        # Align timestamps.
-        # This is necessary because the chunks may not begin at the same time.
-        common_timestamps = np.intersect1d(ref_timestamps, remote_timestamps)
-        ref_audio_data_aligned = ref_audio_data[
-            np.isin(ref_timestamps, common_timestamps)
-        ]
-        remote_audio_data_aligned = remote_audio_data[
-            np.isin(remote_timestamps, common_timestamps)
-        ]
-
-        db, tau = self.rcc(
-            ref_audio_data_aligned, remote_audio_data_aligned, sample_rate
-        )
-        return db
-
     def rcc(self, sig1, sig2, fs, ref_amp=10000.0):
         """
-        Robust cross-correlation
+        Robust cross-correlation using FFT for efficiency.
+
+        Args:
+            sig1: Reference signal (numpy array)
+            sig2: Remote signal (numpy array)
+            fs: Sample rate in Hz
+            ref_amp: Reference amplitude for dB calculation
+
+        Returns:
+            tuple: (db, tau, correlation_coef)
+                - db: Cross-correlation amplitude in dB
+                - tau: Time delay in seconds (positive = sig2 delayed)
+                - correlation_coef: Pearson correlation coefficient
         """
         if len(sig1) != len(sig2):
-            raise ValueError("Input signals must be the same length")
+            raise ValueError(
+                f"Input signals must be the same length: {len(sig1)} vs {len(sig2)}"
+            )
         if fs <= 0:
             raise ValueError("Sampling frequency must be positive")
+        if len(sig1) == 0:
+            raise ValueError("Input signals cannot be empty")
+
+        # Convert to numpy arrays and ensure float64 for numerical stability
+        sig1 = np.asarray(sig1, dtype=np.float64)
+        sig2 = np.asarray(sig2, dtype=np.float64)
+
+        # Normalize signals to prevent numerical issues
+        sig1_mean = np.mean(sig1)
+        sig2_mean = np.mean(sig2)
+        sig1_centered = sig1 - sig1_mean
+        sig2_centered = sig2 - sig2_mean
+
+        # FFT-based cross-correlation
+        # Use scipy's correlate for correct normalization and lag handling
+        from scipy.signal import correlate
 
         n = len(sig1)
-        SIG1 = fft(sig1, n=n)
-        SIG2 = fft(sig2, n=n)
-        cc = np.real(ifft(SIG2 * np.conj(SIG1)))
 
-        shift = np.argmax(np.abs(cc))
+        # Perform cross-correlation
+        cc = correlate(sig2_centered, sig1_centered, mode="full", method="fft")
+
+        # Lag array: negative lags mean sig2 leads sig1, positive means sig2 lags
+        lags = np.arange(-n + 1, n)
+
+        # Find peak correlation
+        peak_idx = np.argmax(np.abs(cc))
+        shift = lags[peak_idx]
         tau = shift / fs
 
-        amplitude = np.max(np.abs(cc))
-        db = 20 * np.log10(amplitude / ref_amp)
+        # Calculate amplitude and convert to dB
+        amplitude = np.abs(cc[np.argmax(np.abs(cc))])
 
-        r, _ = pearsonr(sig1, sig2)
+        # Avoid log(0) errors
+        if amplitude < 1e-10:
+            db = -np.inf
+            logger.warning("Correlation amplitude near zero, setting dB to -inf")
+        else:
+            db = 20 * np.log10(amplitude / ref_amp)
 
-        return db, tau
+        # Calculate Pearson correlation coefficient for validation
+        try:
+            r, _ = pearsonr(sig1, sig2)
+        except Exception as e:
+            logger.warning(f"Failed to calculate Pearson correlation: {e}")
+            r = 0.0
+
+        return db, tau, r
 
 
 class ChunkToTimeSeries(DataProcessor):
