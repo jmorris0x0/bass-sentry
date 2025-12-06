@@ -7,9 +7,12 @@ help: ## Show this help
 
 run: ## Start all services (builds if needed)
 	docker compose up -d --build
+	./advertise-service.sh &
+	@echo "\n✓ Bass Sentry running and advertised on network"
 
 stop: ## Stop all services
 	docker compose down
+	pkill -f advertise-service.sh || true
 
 install: ## Install all dependencies
 	pip install -r master-node/requirements.txt
