@@ -1,0 +1,171 @@
+#cloud-config
+# Bass Sentry Raspberry Pi Cloud-Init Configuration
+#
+# BEFORE USING:
+# =============
+# 1. Edit this file to add YOUR SSH public key (line ~45)
+# 2. Edit this file to set YOUR git repo URL (line ~70)
+# 3. Edit network-config with YOUR WiFi credentials
+#
+# USAGE:
+# 1. Flash Raspberry Pi OS Lite (64-bit) to SD card using rpi-imager
+# 2. Mount the boot partition
+# 3. Copy this file to boot partition as 'user-data'
+# 4. Copy 'network-config' to boot partition
+# 5. Eject, insert in Pi, power on
+# 6. Wait 3-5 minutes for first boot
+# 7. SSH: ssh bass@bass-node.local (or use IP)
+#
+# NODE IDENTITY:
+# ==============
+# Nodes identify by Pi serial number (printed on board sticker).
+# Map serial -> friendly name in config/node_names.json on master.
+
+hostname: bass-node
+manage_etc_hosts: true
+
+# Timezone (change to your locale)
+timezone: America/Los_Angeles
+
+# Create bass user for running the service
+users:
+  - name: bass
+    groups: [adm, audio, video, plugdev, sudo, dialout]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    # Password: "bass" (change after first login!)
+    # Generate new hash: echo 'yourpassword' | openssl passwd -6 -stdin
+    passwd: $6$rounds=4096$randomsalt$aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890abcdefghijklmnopqrstuv
+    #
+    # ADD YOUR SSH PUBLIC KEY HERE (recommended):
+    ssh_authorized_keys:
+      - ssh-rsa AAAA_YOUR_PUBLIC_KEY_HERE user@host
+      # Add more keys if needed:
+      # - ssh-rsa AAAA_ANOTHER_KEY another@host
+
+# Keep default pi user for emergency access (optional)
+# Remove this block if you don't want it
+  - name: pi
+    lock_passwd: false
+    passwd: $6$rounds=4096$randomsalt$aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890abcdefghijklmnopqrstuv
+
+# Enable SSH password auth (for initial setup without keys)
+ssh_pwauth: true
+
+# Install required packages
+packages:
+  - git
+  - python3-venv
+  - python3-pip
+  - portaudio19-dev
+  - libsndfile1
+  - libsndfile1-dev
+  - libatlas-base-dev
+  - avahi-daemon
+  - avahi-utils
+  - alsa-utils
+  - htop
+  - vim
+
+runcmd:
+  # Enable audio group
+  - usermod -aG audio bass
+
+  # Clone the repository
+  # === CHANGE THIS URL TO YOUR REPO ===
+  - su - bass -c "git clone https://github.com/jmorris0x0/bass-sentry.git /home/bass/bass-sentry || echo 'Clone failed - check repo URL'"
+
+  # Create virtual environment
+  - su - bass -c "python3 -m venv /home/bass/bass-sentry/venv"
+
+  # Install Python dependencies (use remote-node specific requirements)
+  - su - bass -c "/home/bass/bass-sentry/venv/bin/pip install --upgrade pip"
+  - su - bass -c "/home/bass/bass-sentry/venv/bin/pip install -r /home/bass/bass-sentry/remote-node/requirements.txt"
+
+  # Start avahi for mDNS discovery
+  - systemctl enable avahi-daemon
+  - systemctl start avahi-daemon
+
+  # Create systemd service
+  - |
+    cat > /etc/systemd/system/bass_sentry_node.service << 'SERVICEEOF'
+    [Unit]
+    Description=Bass Sentry Remote Node
+    After=network-online.target sound.target time-sync.target
+    Wants=network-online.target time-sync.target
+
+    [Service]
+    Type=simple
+    User=bass
+    Group=bass
+    WorkingDirectory=/home/bass/bass-sentry/remote-node
+    ExecStart=/home/bass/bass-sentry/venv/bin/python remote_node.py dag_files/dag-filt-ds-chunk.json
+    Restart=always
+    RestartSec=10
+    Environment="PYTHONUNBUFFERED=1"
+    Environment="MQTT_HOST=bass-master.local"
+
+    # Graylog centralized logging (optional - uncomment to enable)
+    # Set GRAYLOG_HOST to your master node IP/hostname
+    #Environment="GRAYLOG_HOST=bass-master.local"
+    #Environment="GRAYLOG_PORT=12201"
+
+    # Logging to journald (local fallback, always available)
+    StandardOutput=journal
+    StandardError=journal
+    SyslogIdentifier=bass-sentry
+
+    [Install]
+    WantedBy=multi-user.target
+    SERVICEEOF
+
+  # Enable and start the service
+  - systemctl daemon-reload
+  - systemctl enable bass_sentry_node
+  - systemctl start bass_sentry_node
+
+  # Create helpful aliases for the bass user
+  - |
+    cat >> /home/bass/.bashrc << 'ALIASEOF'
+
+    # Bass Sentry shortcuts
+    alias logs='journalctl -u bass_sentry_node -f'
+    alias status='systemctl status bass_sentry_node'
+    alias restart='sudo systemctl restart bass_sentry_node'
+    alias stop='sudo systemctl stop bass_sentry_node'
+    alias start='sudo systemctl start bass_sentry_node'
+    alias errors='journalctl -u bass_sentry_node -p err -f'
+    alias serial='cat /proc/cpuinfo | grep Serial | cut -d: -f2 | tail -c 9'
+
+    echo ""
+    echo "Bass Sentry Node"
+    echo "================"
+    echo "Commands: logs, status, restart, stop, start, errors, serial"
+    echo "Serial: $(cat /proc/cpuinfo | grep Serial | cut -d: -f2 | tail -c 9)"
+    echo ""
+    ALIASEOF
+
+  - chown bass:bass /home/bass/.bashrc
+
+# Final message
+final_message: |
+  ===================================
+  Bass Sentry node provisioning done!
+  ===================================
+  Hostname: $hostname
+  IP: $local_ipv4
+
+  SSH access:
+    ssh bass@$hostname.local
+    Password: bass (change it!)
+
+  Useful commands (after SSH):
+    logs     - View live logs
+    status   - Check service status
+    restart  - Restart the service
+    serial   - Show Pi serial number
+    errors   - View only error logs
+
+  Check service:
+    sudo systemctl status bass_sentry_node

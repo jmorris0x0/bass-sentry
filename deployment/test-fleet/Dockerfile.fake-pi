@@ -1,0 +1,62 @@
+# Fake Raspberry Pi for testing deployment
+# Simulates a Pi with serial number and runs the remote node
+
+FROM debian:bookworm-slim
+
+# Avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install packages similar to what cloud-init would install
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-venv \
+    python3-pip \
+    git \
+    portaudio19-dev \
+    libsndfile1 \
+    libsndfile1-dev \
+    libatlas-base-dev \
+    alsa-utils \
+    avahi-daemon \
+    avahi-utils \
+    dbus \
+    openssh-server \
+    sudo \
+    vim \
+    curl \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create bass user (same as cloud-init)
+RUN useradd -m -s /bin/bash -G audio,sudo bass \
+    && echo "bass:bass" | chpasswd \
+    && echo "bass ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Fake /proc/cpuinfo with serial number (will be overridden at runtime)
+# The serial is set via environment variable and written at container start
+RUN mkdir -p /run/dbus
+
+# Create directory for the app
+WORKDIR /home/bass
+
+# Copy the repository (mounted or copied)
+COPY --chown=bass:bass . /home/bass/bass-sentry
+
+# Create virtual environment and install dependencies
+RUN su - bass -c "python3 -m venv /home/bass/bass-sentry/venv" \
+    && su - bass -c "/home/bass/bass-sentry/venv/bin/pip install --upgrade pip" \
+    && su - bass -c "/home/bass/bass-sentry/venv/bin/pip install -r /home/bass/bass-sentry/remote-node/requirements.txt"
+
+# Copy the entrypoint script
+COPY deployment/test-fleet/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Environment variables (can be overridden)
+ENV PI_SERIAL="TEST0001"
+ENV NODE_NAME=""
+ENV MQTT_HOST="master"
+ENV GRAYLOG_HOST=""
+ENV GRAYLOG_PORT="12201"
+ENV USE_FAKE_AUDIO="true"
+
+ENTRYPOINT ["/entrypoint.sh"]

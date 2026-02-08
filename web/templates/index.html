@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bass Sentry - Live Monitor</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <header class="header">
+            <h1>Bass Sentry</h1>
+            <div class="status-indicator" id="connection-status">
+                <span class="status-dot"></span>
+                <span class="status-text">Connecting...</span>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Top Row: Venue Contribution (the key metric!) -->
+            <section class="panel venue-panel">
+                <h2>Venue Contribution at Remote Stations</h2>
+                <p class="panel-description">Noise-corrected dB levels showing venue's sound contribution at each location</p>
+                <div id="venue-contribution-container" class="venue-grid">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </section>
+
+            <!-- Second Row: Radar and Raw Levels -->
+            <div class="top-row">
+                <!-- Distance Radar -->
+                <section class="panel radar-panel">
+                    <h2>Distance Radar</h2>
+                    <div class="radar-container">
+                        <canvas id="radar-canvas" width="400" height="400"></canvas>
+                    </div>
+                    <div class="radar-legend">
+                        <span class="legend-item"><span class="dot reference"></span> Reference (Stage)</span>
+                        <span class="legend-item"><span class="dot remote"></span> Remote Nodes</span>
+                    </div>
+                </section>
+
+                <!-- Raw Sound Levels (total, not venue-corrected) -->
+                <section class="panel levels-panel">
+                    <h2>Raw Sound Levels</h2>
+                    <div id="levels-container" class="levels-grid">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </section>
+            </div>
+
+            <!-- Middle Row: Correlation Waveforms -->
+            <section class="panel waveform-panel">
+                <h2>Cross-Correlation Waveforms</h2>
+                <div id="waveforms-container" class="waveforms-grid">
+                    <p class="placeholder">Waiting for correlation data...</p>
+                </div>
+            </section>
+
+            <!-- Bottom Row: Node Health and Stats -->
+            <div class="bottom-row">
+                <!-- Node Health -->
+                <section class="panel health-panel">
+                    <h2>Node Health</h2>
+                    <div id="health-container" class="health-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Node</th>
+                                    <th>Status</th>
+                                    <th>Last Seen</th>
+                                </tr>
+                            </thead>
+                            <tbody id="health-tbody">
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Quick Stats -->
+                <section class="panel stats-panel">
+                    <h2>Quick Stats</h2>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-value" id="stat-nodes-online">-</span>
+                            <span class="stat-label">Nodes Online</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value" id="stat-max-distance">-</span>
+                            <span class="stat-label">Max Distance</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value" id="stat-avg-level">-</span>
+                            <span class="stat-label">Avg Level</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value" id="stat-update-rate">-</span>
+                            <span class="stat-label">Update Rate</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <span>Bass Sentry v1.0</span>
+            <span id="last-update">Last update: --</span>
+        </footer>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

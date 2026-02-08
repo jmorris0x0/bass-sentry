@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from common.signals import SignalGenerator, SignalConfig, SignalType
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "master-node"))
-from data_handler import ChunkToCCStream
+from correlation import ChunkToCCStream
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"

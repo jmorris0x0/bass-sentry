@@ -1,0 +1,269 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Node Status Overview",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 4},
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"mybucket\")\n  |> range(start: -2m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"node_health\")\n  |> filter(fn: (r) => r[\"_field\"] == \"online\")\n  |> group(columns: [\"node_name\"])\n  |> last()\n  |> group()\n  |> count()",
+          "datasource": {"type": "influxdb", "uid": "influxdb"}
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "green", "value": 1}
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "title": "Nodes Online (last 2 min)"
+    },
+    {
+      "id": 2,
+      "title": "Total Messages Sent",
+      "type": "stat",
+      "gridPos": {"x": 8, "y": 0, "w": 8, "h": 4},
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"mybucket\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"node_health\")\n  |> filter(fn: (r) => r[\"_field\"] == \"messages_sent\")\n  |> group(columns: [\"node_name\"])\n  |> last()\n  |> group()\n  |> sum()",
+          "datasource": {"type": "influxdb", "uid": "influxdb"}
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "unit": "none"
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      }
+    },
+    {
+      "id": 3,
+      "title": "Total Messages Failed",
+      "type": "stat",
+      "gridPos": {"x": 16, "y": 0, "w": 8, "h": 4},
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"mybucket\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"node_health\")\n  |> filter(fn: (r) => r[\"_field\"] == \"messages_failed\")\n  |> group(columns: [\"node_name\"])\n  |> last()\n  |> group()\n  |> sum()",
+          "datasource": {"type": "influxdb", "uid": "influxdb"}
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 10},
+              {"color": "red", "value": 100}
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      }
+    },
+    {
+      "id": 4,
+      "title": "Node Health Table",
+      "type": "table",
+      "gridPos": {"x": 0, "y": 4, "w": 24, "h": 8},
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"mybucket\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"node_health\")\n  |> pivot(rowKey: [\"_time\", \"node_name\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> group(columns: [\"node_name\"])\n  |> last()\n  |> group()\n  |> keep(columns: [\"node_name\", \"status\", \"messages_sent\", \"messages_failed\", \"buffer_size\", \"_time\"])\n  |> rename(columns: {\"_time\": \"last_seen\", \"node_name\": \"Node\", \"status\": \"Status\", \"messages_sent\": \"Msgs Sent\", \"messages_failed\": \"Msgs Failed\", \"buffer_size\": \"Buffer\"})",
+          "datasource": {"type": "influxdb", "uid": "influxdb"}
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "Status"},
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {"type": "value", "options": {"connected": {"color": "green", "text": "ONLINE"}}},
+                  {"type": "value", "options": {"disconnected": {"color": "red", "text": "OFFLINE"}}}
+                ]
+              },
+              {"id": "custom.displayMode", "value": "color-background"}
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "last_seen"},
+            "properties": [
+              {"id": "unit", "value": "dateTimeAsLocal"}
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "Buffer"},
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {"color": "green", "value": null},
+                    {"color": "yellow", "value": 10},
+                    {"color": "red", "value": 100}
+                  ]
+                }
+              },
+              {"id": "custom.displayMode", "value": "color-background"}
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [{"desc": true, "displayName": "last_seen"}]
+      }
+    },
+    {
+      "id": 5,
+      "title": "Messages Sent Over Time",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"node_health\")\n  |> filter(fn: (r) => r[\"_field\"] == \"messages_sent\")\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)",
+          "datasource": {"type": "influxdb", "uid": "influxdb"}
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": false
+          }
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"]},
+        "tooltip": {"mode": "multi"}
+      }
+    },
+    {
+      "id": 6,
+      "title": "Buffer Size Over Time",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"node_health\")\n  |> filter(fn: (r) => r[\"_field\"] == \"buffer_size\")\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)",
+          "datasource": {"type": "influxdb", "uid": "influxdb"}
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 10},
+              {"color": "red", "value": 100}
+            ]
+          }
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"]},
+        "tooltip": {"mode": "multi"}
+      }
+    },
+    {
+      "id": 7,
+      "title": "Heartbeats Received",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 20, "w": 24, "h": 6},
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"node_health\")\n  |> filter(fn: (r) => r[\"_field\"] == \"online\")\n  |> aggregateWindow(every: 30s, fn: count, createEmpty: true)",
+          "datasource": {"type": "influxdb", "uid": "influxdb"}
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 0
+          }
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["bass-sentry", "health", "nodes"],
+  "templating": {"list": []},
+  "time": {"from": "now-15m", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "Node Health",
+  "uid": "bass-sentry-node-health",
+  "version": 1,
+  "weekStart": ""
+}

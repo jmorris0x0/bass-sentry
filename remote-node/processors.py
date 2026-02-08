@@ -1,4 +1,23 @@
+"""
+Signal Processing DAG (Directed Acyclic Graph)
+
+This module implements a configurable audio processing pipeline. Audio chunks
+flow through a DAG defined in JSON, allowing parallel processing paths.
+
+Example DAG:
+    start ─┬─> bandpass_filter ──> resample ──> dbfs_measurement
+           │
+           └─> dbfs_measurement (raw)
+
+The DAG is defined in a JSON config file and executed by DAGProcessor.
+Each step type maps to a processor class (BandpassFilter, DbfsMeasurement, etc.).
+
+See docs/CODE_GUIDE.md for full documentation.
+"""
+
+import atexit
 import logging
+import threading
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
@@ -12,11 +31,46 @@ REFERENCE_DBSPL = 120
 
 logger = logging.getLogger(__name__)
 
+# Module-level shared executor for DAG processing
+_dag_executor = None
+_dag_executor_lock = threading.Lock()
+
+
+def _get_dag_executor(max_workers=4):
+    """Get or create the shared DAG executor."""
+    global _dag_executor
+    if _dag_executor is None:
+        with _dag_executor_lock:
+            if _dag_executor is None:
+                _dag_executor = ThreadPoolExecutor(max_workers=max_workers)
+                # Register cleanup on interpreter shutdown
+                atexit.register(_shutdown_dag_executor)
+    return _dag_executor
+
+
+def _shutdown_dag_executor():
+    """Shutdown the shared executor."""
+    global _dag_executor
+    if _dag_executor is not None:
+        _dag_executor.shutdown(wait=False)
+        _dag_executor = None
+
 
 class DAGProcessor:
-    def __init__(self, steps, step_map):
+    def __init__(self, steps, step_map, max_workers=4, strict=False):
+        """Initialize DAG processor.
+
+        Args:
+            steps: DAG step definitions
+            step_map: Mapping of step types to processor classes
+            max_workers: Maximum concurrent workers
+            strict: If True, re-raise exceptions instead of logging and continuing
+        """
         self.steps = steps
         self.step_map = step_map
+        self.max_workers = max_workers
+        self.strict = strict
+        self.errors = []  # Track errors for inspection
 
     def process(self, data, step_id="start"):
         step = self.steps.get(step_id)
@@ -36,26 +90,38 @@ class DAGProcessor:
         if not next_steps:
             return processed_data
 
-        with ThreadPoolExecutor() as executor:
-            futures = {}
-            for next_step_id in next_steps:
-                next_data = (
-                    deepcopy(processed_data) if len(next_steps) > 1 else processed_data
+        # Use shared executor instead of creating new one each time
+        executor = _get_dag_executor(self.max_workers)
+        futures = {}
+        for next_step_id in next_steps:
+            next_data = (
+                deepcopy(processed_data) if len(next_steps) > 1 else processed_data
+            )
+            future = executor.submit(self.process, next_data, next_step_id)
+            futures[future] = next_step_id
+
+        results = []
+        for future in as_completed(futures):
+            current_step_id = futures[future]
+            try:
+                result = future.result()
+                if result is not None:
+                    results.extend(result if isinstance(result, list) else [result])
+            except Exception as exc:
+                error_info = {
+                    "step_id": current_step_id,
+                    "exception": exc,
+                    "exception_type": type(exc).__name__,
+                }
+                self.errors.append(error_info)
+                logger.error(
+                    f"Step {current_step_id} failed: {type(exc).__name__}: {exc}",
+                    exc_info=True,  # Include traceback
                 )
-                future = executor.submit(self.process, next_data, next_step_id)
-                futures[future] = next_step_id
+                if self.strict:
+                    raise
 
-            results = []
-            for future in as_completed(futures):
-                step_id = futures[future]
-                try:
-                    result = future.result()
-                    if result is not None:
-                        results.extend(result if isinstance(result, list) else [result])
-                except Exception as exc:
-                    logger.error(f"Step {step_id} generated an exception: {exc}")
-
-            return results
+        return results
 
 
 class SignalProcessor:

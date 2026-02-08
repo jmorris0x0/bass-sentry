@@ -1,0 +1,86 @@
+# Bass Sentry Fleet Inventory
+# Copy this file to inventory.local.yml and customize for your deployment
+#
+# Node Discovery:
+# ===============
+# Nodes use mDNS (.local hostnames) for automatic discovery.
+# Each Pi should have a unique hostname set (e.g., bass-stage, bass-dance-floor).
+#
+# Example: To find all bass-sentry nodes on your network:
+#   avahi-browse -art | grep bass
+#
+# Or scan directly with:
+#   ansible-inventory -i inventory.local.yml --list
+
+all:
+  vars:
+    # GitHub repository
+    bass_sentry_repo: https://github.com/youruser/bass-sentry.git
+    bass_sentry_branch: master
+
+    # Installation paths
+    install_dir: /home/bass/bass-sentry
+    venv_dir: /home/bass/bass-sentry/venv
+
+    # User configuration
+    bass_user: bass
+    bass_group: bass
+
+    # Service configuration
+    service_name: bass_sentry_node
+
+    # mDNS/Master node discovery
+    # Remote nodes will auto-discover master via mDNS "bass-master.local"
+    mqtt_host: bass-master.local
+
+  children:
+    # Reference node (typically at stage/main sound source)
+    reference_nodes:
+      hosts:
+        stage-node:
+          # Use mDNS hostname instead of static IP
+          ansible_host: bass-stage.local
+          ansible_user: bass
+          dag_file: dag-filt-ds-chunk.json
+          node_name: stage
+          # Reference nodes need the 'reference' tag
+          reference_node: true
+
+    # Remote monitoring nodes
+    remote_nodes:
+      hosts:
+        dance-floor:
+          # Use mDNS hostname (.local)
+          ansible_host: bass-dance-floor.local
+          ansible_user: bass
+          dag_file: dag-filt-ds-chunk.json
+          node_name: dance_floor
+          sample_rate: 44100
+
+        back-bar:
+          ansible_host: bass-back-bar.local
+          ansible_user: bass
+          dag_file: dag-filt-ds-chunk.json
+          node_name: back_bar
+
+        neighbor-north:
+          ansible_host: bass-neighbor-north.local
+          ansible_user: bass
+          dag_file: dag-filt-ds-chunk.json
+          node_name: neighbor_north
+
+        # Add more nodes as needed
+        # neighbor-south:
+        #   ansible_host: bass-neighbor-south.local
+        #   ansible_user: bass
+        #   dag_file: dag-filt-ds-chunk.json
+        #   node_name: neighbor_south
+
+    # Master node (typically runs on server with InfluxDB/Grafana)
+    master_nodes:
+      hosts:
+        master:
+          ansible_host: bass-master.local
+          ansible_user: bass
+          # Master node uses Docker
+          use_docker: true

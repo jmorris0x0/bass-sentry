@@ -1,0 +1,39 @@
+{
+    "description": "Node configuration for Bass Sentry venue map and dashboard",
+    "nodes": {
+        "stage": {
+            "type": "reference",
+            "label": "Stage",
+            "position": {"x": 0, "y": 0},
+            "description": "Reference microphone at main sound source"
+        },
+        "dance_floor": {
+            "type": "remote",
+            "label": "Dance Floor",
+            "position": {"x": 15, "y": 10},
+            "description": "Dance floor monitoring"
+        },
+        "back_bar": {
+            "type": "remote",
+            "label": "Back Bar",
+            "position": {"x": 40, "y": 0},
+            "description": "Back bar area"
+        },
+        "neighbor_north": {
+            "type": "remote",
+            "label": "Neighbor (North)",
+            "position": {"x": 100, "y": 30},
+            "description": "North neighbor monitoring point"
+        }
+    },
+    "venue": {
+        "name": "Example Venue",
+        "width_m": 150,
+        "height_m": 80
+    },
+    "limits": {
+        "neighbor_max_db": 65,
+        "dance_floor_max_db": 95,
+        "warning_threshold": 0.9
+    }
+}

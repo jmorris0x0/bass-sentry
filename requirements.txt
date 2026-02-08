@@ -35,3 +35,6 @@ resampy
 # Plotting for development/debugging
 matplotlib
 
+# Web dashboard
+flask>=3.0.0
+

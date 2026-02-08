@@ -1,0 +1,272 @@
+# Bass Sentry Grafana Alerting Configuration
+# This file auto-provisions alert rules when Grafana starts
+
+apiVersion: 1
+
+# Contact points for notifications
+contactPoints:
+  - orgId: 1
+    name: bass-sentry-notifications
+    receivers:
+      # Uncomment and configure your preferred notification method:
+
+      # Slack
+      # - uid: slack-notifications
+      #   type: slack
+      #   settings:
+      #     url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+      #     recipient: "#sound-alerts"
+      #     username: "Bass Sentry"
+
+      # Discord
+      # - uid: discord-notifications
+      #   type: discord
+      #   settings:
+      #     url: "https://discord.com/api/webhooks/YOUR/WEBHOOK/URL"
+
+      # Email (requires SMTP config in grafana.ini)
+      # - uid: email-notifications
+      #   type: email
+      #   settings:
+      #     addresses: "soundguy@venue.com,manager@venue.com"
+
+      # Webhook (for custom integrations)
+      - uid: webhook-notifications
+        type: webhook
+        settings:
+          url: "http://localhost:5000/api/alert-webhook"
+          httpMethod: POST
+
+# Notification policies
+policies:
+  - orgId: 1
+    receiver: bass-sentry-notifications
+    group_by: ['alertname', 'location']
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 1h
+
+# Alert rules
+groups:
+  - orgId: 1
+    name: Sound Levels
+    folder: Bass Sentry
+    interval: 1m
+    rules:
+      # High neighbor noise level
+      - uid: high-neighbor-level
+        title: High Neighbor Noise Level
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: influxdb
+            model:
+              query: |
+                from(bucket: "mybucket")
+                  |> range(start: -5m)
+                  |> filter(fn: (r) => r["_measurement"] == "dBSPL")
+                  |> filter(fn: (r) => r["location"] =~ /neighbor/)
+                  |> aggregateWindow(every: 1m, fn: mean)
+                  |> last()
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: mean
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [65]  # Alert if > 65 dB at neighbor
+        for: 5m
+        annotations:
+          summary: "Neighbor noise level above 65 dB"
+          description: "Sound level at neighbor monitoring point has been above 65 dB for 5 minutes. Current: {{ $values.B.Value }} dB"
+        labels:
+          severity: warning
+          location: neighbor
+
+      # Critical neighbor noise level
+      - uid: critical-neighbor-level
+        title: Critical Neighbor Noise Level
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: influxdb
+            model:
+              query: |
+                from(bucket: "mybucket")
+                  |> range(start: -5m)
+                  |> filter(fn: (r) => r["_measurement"] == "dBSPL")
+                  |> filter(fn: (r) => r["location"] =~ /neighbor/)
+                  |> aggregateWindow(every: 1m, fn: mean)
+                  |> last()
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: mean
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [75]  # Critical if > 75 dB
+        for: 2m
+        annotations:
+          summary: "CRITICAL: Neighbor noise level above 75 dB!"
+          description: "Sound level at neighbor monitoring point is CRITICAL. Immediate action required. Current: {{ $values.B.Value }} dB"
+        labels:
+          severity: critical
+          location: neighbor
+
+  - orgId: 1
+    name: Node Health
+    folder: Bass Sentry
+    interval: 1m
+    rules:
+      # Node offline
+      - uid: node-offline
+        title: Node Offline
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: influxdb
+            model:
+              query: |
+                from(bucket: "mybucket")
+                  |> range(start: -5m)
+                  |> filter(fn: (r) => r["_measurement"] == "node_health")
+                  |> filter(fn: (r) => r["_field"] == "online")
+                  |> group(columns: ["node_name"])
+                  |> last()
+                  |> map(fn: (r) => ({r with age_seconds: float(v: now()) - float(v: r._time) / 1000000000.0}))
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [120]  # Alert if no heartbeat for 2 minutes
+        for: 2m
+        annotations:
+          summary: "Node {{ $labels.node_name }} is offline"
+          description: "Node has not sent a heartbeat in over 2 minutes"
+        labels:
+          severity: warning
+
+      # High buffer size (connection issues)
+      - uid: high-buffer-size
+        title: High Message Buffer
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: influxdb
+            model:
+              query: |
+                from(bucket: "mybucket")
+                  |> range(start: -5m)
+                  |> filter(fn: (r) => r["_measurement"] == "node_health")
+                  |> filter(fn: (r) => r["_field"] == "buffer_size")
+                  |> last()
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [50]  # Alert if buffer > 50 messages
+        for: 5m
+        annotations:
+          summary: "Node {{ $labels.node_name }} has high message buffer"
+          description: "Messages are backing up, possible connection issue. Buffer size: {{ $values.B.Value }}"
+        labels:
+          severity: warning
+
+  - orgId: 1
+    name: Correlation Quality
+    folder: Bass Sentry
+    interval: 5m
+    rules:
+      # Low correlation confidence
+      - uid: low-correlation-confidence
+        title: Low Correlation Confidence
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: influxdb
+            model:
+              query: |
+                from(bucket: "mybucket")
+                  |> range(start: -10m)
+                  |> filter(fn: (r) => r["_measurement"] == "correlation")
+                  |> filter(fn: (r) => r["_field"] == "confidence")
+                  |> aggregateWindow(every: 5m, fn: mean)
+                  |> last()
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: mean
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [0.5]  # Alert if confidence < 50%
+        for: 10m
+        annotations:
+          summary: "Low correlation confidence for {{ $labels.remote_id }}"
+          description: "Cross-correlation confidence has dropped below 50%. This may indicate audio sync issues or environmental interference."
+        labels:
+          severity: info

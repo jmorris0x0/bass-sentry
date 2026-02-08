@@ -1,0 +1,61 @@
+{
+  "v": "1",
+  "id": "bass-sentry-inputs",
+  "rev": 1,
+  "name": "Bass Sentry Inputs",
+  "summary": "Pre-configured inputs for Bass Sentry logging",
+  "description": "Automatically creates GELF UDP input for Bass Sentry remote nodes",
+  "vendor": "Bass Sentry",
+  "url": "https://github.com/jmorris0x0/bass-sentry",
+  "server_version": "5.2.0",
+  "entities": [
+    {
+      "v": "1",
+      "type": {
+        "name": "input",
+        "version": "1"
+      },
+      "id": "gelf-udp-bass-sentry",
+      "data": {
+        "title": {
+          "@type": "string",
+          "@value": "Bass Sentry Nodes"
+        },
+        "configuration": {
+          "recv_buffer_size": {
+            "@type": "integer",
+            "@value": 262144
+          },
+          "port": {
+            "@type": "integer",
+            "@value": 12201
+          },
+          "bind_address": {
+            "@type": "string",
+            "@value": "0.0.0.0"
+          },
+          "decompress_size_limit": {
+            "@type": "integer",
+            "@value": 8388608
+          }
+        },
+        "static_fields": {},
+        "type": {
+          "@type": "string",
+          "@value": "org.graylog2.inputs.gelf.udp.GELFUDPInput"
+        },
+        "global": {
+          "@type": "boolean",
+          "@value": true
+        },
+        "extractors": []
+      },
+      "constraints": [
+        {
+          "type": "server-version",
+          "version": ">=5.0.0"
+        }
+      ]
+    }
+  ]
+}

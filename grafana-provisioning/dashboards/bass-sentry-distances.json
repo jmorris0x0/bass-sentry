@@ -15,7 +15,7 @@
         "targets": [
           {
             "refId": "A",
-            "query": "from(bucket: \"bass_sentry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"correlation\")\n  |> filter(fn: (r) => r[\"_field\"] == \"delay_ms\")\n  |> map(fn: (r) => ({r with _value: r._value * 0.343}))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean)",
+            "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"correlation\")\n  |> filter(fn: (r) => r[\"_field\"] == \"delay_ms\")\n  |> map(fn: (r) => ({r with _value: r._value * 0.343}))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean)",
             "datasource": "InfluxDB"
           }
         ],
@@ -47,7 +47,7 @@
         "targets": [
           {
             "refId": "A",
-            "query": "from(bucket: \"bass_sentry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"correlation\")\n  |> filter(fn: (r) => r[\"_field\"] == \"delay_ms\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean)",
+            "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"correlation\")\n  |> filter(fn: (r) => r[\"_field\"] == \"delay_ms\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean)",
             "datasource": "InfluxDB"
           }
         ],
@@ -67,7 +67,7 @@
         "targets": [
           {
             "refId": "A",
-            "query": "from(bucket: \"bass_sentry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"correlation\")\n  |> filter(fn: (r) => r[\"_field\"] == \"db\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean)",
+            "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"correlation\")\n  |> filter(fn: (r) => r[\"_field\"] == \"db\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean)",
             "datasource": "InfluxDB"
           }
         ],
@@ -87,7 +87,7 @@
         "targets": [
           {
             "refId": "A",
-            "query": "from(bucket: \"bass_sentry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"correlation\")\n  |> filter(fn: (r) => r[\"_field\"] == \"data_quality\")\n  |> map(fn: (r) => ({r with _value: r._value * 100.0}))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean)",
+            "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"correlation\")\n  |> filter(fn: (r) => r[\"_field\"] == \"data_quality\")\n  |> map(fn: (r) => ({r with _value: r._value * 100.0}))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean)",
             "datasource": "InfluxDB"
           }
         ],
@@ -117,7 +117,7 @@
         "targets": [
           {
             "refId": "A",
-            "query": "from(bucket: \"bass_sentry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"correlation\")\n  |> filter(fn: (r) => r[\"_field\"] == \"confidence\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean)",
+            "query": "from(bucket: \"mybucket\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"correlation\")\n  |> filter(fn: (r) => r[\"_field\"] == \"confidence\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean)",
             "datasource": "InfluxDB"
           }
         ],
@@ -147,7 +147,7 @@
         "targets": [
           {
             "refId": "A",
-            "query": "from(bucket: \"bass_sentry\")\n  |> range(start: -1m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"correlation\")\n  |> filter(fn: (r) => r[\"_field\"] == \"delay_ms\")\n  |> last()\n  |> map(fn: (r) => ({r with _value: r._value * 0.343}))",
+            "query": "from(bucket: \"mybucket\")\n  |> range(start: -1m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"correlation\")\n  |> filter(fn: (r) => r[\"_field\"] == \"delay_ms\")\n  |> last()\n  |> map(fn: (r) => ({r with _value: r._value * 0.343}))",
             "datasource": "InfluxDB"
           }
         ],

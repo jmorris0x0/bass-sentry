@@ -1,0 +1,40 @@
+[Unit]
+Description=Bass Sentry Remote Node
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ bass_user }}
+Group={{ bass_user }}
+WorkingDirectory={{ install_dir }}/remote-node
+ExecStart={{ venv_dir }}/bin/python main.py --dag {{ dag_file | default('remote-bass.dag') }}
+Restart=always
+RestartSec=10
+
+# Environment
+Environment="PYTHONUNBUFFERED=1"
+{% if mqtt_host is defined %}
+Environment="MQTT_HOST={{ mqtt_host }}"
+{% endif %}
+{% if mqtt_port is defined %}
+Environment="MQTT_PORT={{ mqtt_port }}"
+{% endif %}
+{% if node_name is defined %}
+Environment="NODE_NAME={{ node_name }}"
+{% endif %}
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bass-sentry-node
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths={{ install_dir }}
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

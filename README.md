@@ -1,6 +1,6 @@
 # Bass Sentry
 
-**Status**: ✅ Production Ready | **Tests**: 34/34 Passing | **Simulation**: <0.1ms Error
+**Status**: ✅ Production Ready | **Tests**: 97 Passing | **Simulation**: <0.1ms Error
 
 > See [STATUS.md](STATUS.md) for current development status, test results, and recent improvements.
 
@@ -58,16 +58,23 @@ See [TRANSPORTS.md](docs/TRANSPORTS.md) for complete transport guide.
 
 ## Installation and Setup
 
+### Master Node
+
 1. Advertise master node: `./advertise-service.sh &`
 2. Build master node: `docker compose build`
 3. Boot master node: `docker compose up`
-4. Load the appropriate DAG file on remote nodes.
-5. Boot remote nodes: `./remote-node/remote_node.py <file.dag>`
-6. Calibrate volume on remote nodes.
-7. Begin monitoring audio via the master node Grafana. (See below.)
 
-Remote node setup now has a script:
-`./remote-node-setup.sh pi-3.json`
+### Remote Nodes (Raspberry Pi)
+
+See **[docs/NODE_PROVISIONING.md](docs/NODE_PROVISIONING.md)** for the complete provisioning guide.
+
+Quick version:
+1. Note the Pi serial number from the board sticker (last 8 chars)
+2. Add serial→name mapping to `config/node_names.json`
+3. Flash SD card with Raspberry Pi OS Lite + cloud-init files
+4. Deploy - node auto-registers with its friendly name
+
+For manual setup: `./remote-node-setup.sh pi-3.json`
 
 ## Usage
 
@@ -149,7 +156,7 @@ The system tolerates up to 40% packet loss through gap interpolation and maintai
 ## Testing and Validation
 
 ```bash
-# Run unit tests (34 comprehensive tests)
+# Run unit tests (97 comprehensive tests)
 pytest tests/ -v
 
 # Run event simulator (proves accuracy)
@@ -160,6 +167,9 @@ The simulator generates venue layouts, correlation visualizations, and accuracy 
 
 ## Documentation
 
+- **[docs/NODE_PROVISIONING.md](docs/NODE_PROVISIONING.md)** - How to set up and deploy Raspberry Pi nodes
+- **[docs/CODE_GUIDE.md](docs/CODE_GUIDE.md)** - Quick reference for understanding the codebase
+- **[docs/TRANSPORTS.md](docs/TRANSPORTS.md)** - Guide to communication options (MQTT, LoRa, HTTP, Serial)
 - **STATUS.md** - Current project status, test results, recent improvements
 - **docs/ARCHITECTURE.md** - Detailed architecture and scaling analysis
 - **docs/CHANGELOG.md** - Complete change history

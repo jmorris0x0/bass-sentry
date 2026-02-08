@@ -32,6 +32,9 @@ class MQTTTransport(Transport):
             username: Optional authentication
             password: Optional authentication
             keepalive: Keepalive interval in seconds (default: 60)
+            connect_timeout: Timeout for connection attempt in seconds (default: 10)
+            connect_retries: Number of connection retry attempts (default: 3)
+            retry_backoff: Backoff multiplier for retries (default: 2.0)
         """
         super().__init__(config)
 
@@ -40,6 +43,11 @@ class MQTTTransport(Transport):
         self.qos = config.get("qos", 1)
         self.client_id = config.get("client_id", None)
         self.keepalive = config.get("keepalive", 60)
+
+        # Connection retry settings
+        self.connect_timeout = config.get("connect_timeout", 10)
+        self.connect_retries = config.get("connect_retries", 3)
+        self.retry_backoff = config.get("retry_backoff", 2.0)
 
         # Create MQTT client
         self.client = mqtt.Client(client_id=self.client_id)
@@ -61,28 +69,54 @@ class MQTTTransport(Transport):
             "messages_received": 0,
             "messages_failed": 0,
             "reconnects": 0,
+            "connection_attempts": 0,
         }
 
     def connect(self) -> bool:
-        """Connect to MQTT broker."""
-        try:
-            logger.info(f"Connecting to MQTT broker at {self.broker}:{self.port}")
-            self.client.connect(self.broker, self.port, self.keepalive)
-            self.client.loop_start()
+        """Connect to MQTT broker with retry logic.
 
-            # Wait for connection (up to 5 seconds)
-            for _ in range(50):
-                if self.connected:
-                    logger.info("MQTT transport connected")
-                    return True
-                time.sleep(0.1)
+        Attempts to connect up to connect_retries times with exponential backoff.
 
-            logger.error("MQTT connection timeout")
-            return False
+        Returns:
+            bool: True if connected successfully, False otherwise
+        """
+        for attempt in range(self.connect_retries):
+            self.stats["connection_attempts"] += 1
 
-        except Exception as e:
-            logger.error(f"MQTT connection failed: {e}")
-            return False
+            try:
+                logger.info(
+                    f"Connecting to MQTT broker at {self.broker}:{self.port} "
+                    f"(attempt {attempt + 1}/{self.connect_retries})"
+                )
+                self.client.connect(self.broker, self.port, self.keepalive)
+                self.client.loop_start()
+
+                # Wait for connection with configurable timeout
+                iterations = int(self.connect_timeout * 10)
+                for _ in range(iterations):
+                    if self.connected:
+                        logger.info("MQTT transport connected")
+                        return True
+                    time.sleep(0.1)
+
+                logger.warning(
+                    f"Connection attempt {attempt + 1} timed out after {self.connect_timeout}s"
+                )
+                self.client.loop_stop()
+
+            except Exception as e:
+                logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
+
+            # Retry with backoff (except on last attempt)
+            if attempt < self.connect_retries - 1:
+                delay = self.retry_backoff ** attempt
+                logger.info(f"Retrying in {delay:.1f}s...")
+                time.sleep(delay)
+
+        logger.error(
+            f"Failed to connect to MQTT broker after {self.connect_retries} attempts"
+        )
+        return False
 
     def disconnect(self):
         """Disconnect from MQTT broker."""

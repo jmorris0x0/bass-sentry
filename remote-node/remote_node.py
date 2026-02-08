@@ -3,6 +3,7 @@ import functools
 import json
 import logging
 import multiprocessing
+import os
 import platform
 import signal
 import sys
@@ -16,7 +17,7 @@ import sounddevice as sd
 from scipy.signal import fftconvolve
 
 # Add parent directory to path for common imports
-sys.path.insert(0, "/Users/jonathan/code/bass-sentry")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common.time_sync import TimeSync
 
 from processors import SignalProcessor
@@ -64,16 +65,45 @@ MAX_QUEUE_SIZE = 60  # 60 chunks = 30 seconds at 2 Hz
 
 
 def setup_logging():
+    """
+    Set up logging with optional Graylog support.
+
+    Environment variables:
+        GRAYLOG_HOST: Graylog server hostname (default: none, disables Graylog)
+        GRAYLOG_PORT: Graylog GELF UDP port (default: 12201)
+        LOG_LEVEL: Logging level (default: INFO)
+        NODE_NAME: Node identifier for log tagging
+    """
     # Define your date format
     date_format = "%Y-%m-%d %H:%M:%S %Z"  # This includes timezone information
 
+    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+
     # Include the asctime field in your format string and set the datefmt parameter
     logging.basicConfig(
-        level=logging.INFO,
+        level=getattr(logging, log_level, logging.INFO),
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s - Line %(lineno)d",
         datefmt=date_format,
     )
     logger = logging.getLogger(__name__)
+
+    # Add Graylog handler if configured
+    graylog_host = os.environ.get("GRAYLOG_HOST")
+    if graylog_host:
+        try:
+            import graypy
+            graylog_port = int(os.environ.get("GRAYLOG_PORT", "12201"))
+            node_name = os.environ.get("NODE_NAME", "unknown")
+
+            handler = graypy.GELFUDPHandler(graylog_host, graylog_port)
+            # Add node identifier to all log messages
+            handler.facility = f"bass-sentry-{node_name}"
+            logging.getLogger().addHandler(handler)
+            logger.info(f"Graylog logging enabled: {graylog_host}:{graylog_port}")
+        except ImportError:
+            logger.warning("graypy not installed, Graylog logging disabled")
+        except Exception as e:
+            logger.warning(f"Failed to setup Graylog logging: {e}")
 
     return logger
 
