@@ -18,7 +18,7 @@ services:
       <<: *global-environment
 
   influxdb:
-    image: influxdb:latest
+    image: influxdb:2.7
     volumes:
       - influxdb-data:/var/lib/influxdb
     environment:
@@ -29,7 +29,7 @@ services:
       - "8086:8086"
 
   mosquitto:
-    image: eclipse-mosquitto:latest
+    image: eclipse-mosquitto:2.0
     ports:
       - "1883:1883"
     volumes:
@@ -38,7 +38,7 @@ services:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.0.0
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana-provisioning/datasources:/etc/grafana/provisioning/datasources
@@ -58,34 +58,55 @@ services:
     ports:
       - "123:123/udp"
 
-#  graylog:
-#    image: graylog/graylog:5.2.0-rc.2-1
-#    volumes:
-#      - graylog-data:/usr/share/graylog/data
-#      - graylog-log:/usr/share/graylog/log
-#    ports:
-#      - "9000:9000"
-#      - "12201:12201/udp"
-#    environment:
-#      GRAYLOG_PASSWORD_SECRET: somepasswordpepper
-#      # Pass is "greylog-password"
-#      GRAYLOG_ROOT_PASSWORD_SHA2: 7af18da763122b0bf251a6477401e593721e2e68e7dba880dbbfee6c40ab8229
-#      GRAYLOG_HTTP_EXTERNAL_URI: http://127.0.0.1:9000/
-#      GRAYLOG_ELASTICSEARCH_HOSTS: http://elasticsearch:9200
-#      GRAYLOG_MONGODB_URI: mongodb://mongo:27017/graylog
-#    depends_on:
-#      - mongo
-#      - elasticsearch
-#
-#  mongo:
-#    image: mongo:latest
-#    volumes:
-#      - mongo-data:/data/db
-#
-#  elasticsearch:
-#    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.0
-#    environment:
-#      - discovery.type=single-node
+  # ===========================================
+  # GRAYLOG - Centralized Logging (Optional)
+  # ===========================================
+  # Uncomment this section to enable centralized logging from all nodes.
+  # Access Graylog UI at http://localhost:9000
+  # Default login: admin / graylog-password
+  #
+  # After starting, you must create a GELF UDP input:
+  # 1. Go to System > Inputs
+  # 2. Select "GELF UDP" from dropdown
+  # 3. Click "Launch new input"
+  # 4. Set port to 12201, click Save
+
+  graylog:
+    image: graylog/graylog:5.2
+    volumes:
+      - graylog-data:/usr/share/graylog/data
+    ports:
+      - "9000:9000"        # Web UI
+      - "12201:12201/udp"  # GELF UDP input (for remote nodes)
+      - "12201:12201/tcp"  # GELF TCP input (backup)
+    environment:
+      # CHANGE THIS: Must be at least 16 characters
+      GRAYLOG_PASSWORD_SECRET: "basssentry16chars!"
+      # Password: "graylog-password" - generate new: echo -n yourpassword | sha256sum
+      GRAYLOG_ROOT_PASSWORD_SHA2: "7af18da763122b0bf251a6477401e593721e2e68e7dba880dbbfee6c40ab8229"
+      GRAYLOG_HTTP_EXTERNAL_URI: "http://localhost:9000/"
+      GRAYLOG_ELASTICSEARCH_HOSTS: "http://opensearch:9200"
+      GRAYLOG_MONGODB_URI: "mongodb://mongo:27017/graylog"
+    depends_on:
+      - mongo
+      - opensearch
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:6.0
+    volumes:
+      - mongo-data:/data/db
+    restart: unless-stopped
+
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    restart: unless-stopped
 
 volumes:
   influxdb-data:
@@ -93,5 +114,5 @@ volumes:
   mosquitto-data:
   mosquitto-log:
   graylog-data:
-  graylog-log:
   mongo-data:
+  opensearch-data:

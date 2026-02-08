@@ -1,0 +1,47 @@
+{
+    "description": "Maps Pi serial numbers to friendly node names. Serial is printed on the board sticker (last 8 chars).",
+    "mappings": {
+        "ABCD1234": {
+            "name": "dance_cave",
+            "label": "Dance Cave",
+            "type": "remote"
+        },
+        "WXYZ5678": {
+            "name": "stage",
+            "label": "Stage (Reference)",
+            "type": "reference"
+        },
+        "STAGE001": {
+            "name": "stage",
+            "label": "Stage (Reference)",
+            "type": "reference"
+        },
+        "DANCE001": {
+            "name": "dance_floor",
+            "label": "Dance Floor",
+            "type": "remote"
+        },
+        "BACKBAR1": {
+            "name": "back_bar",
+            "label": "Back Bar",
+            "type": "remote"
+        },
+        "NEIGH001": {
+            "name": "neighbor_north",
+            "label": "Neighbor (North)",
+            "type": "remote"
+        }
+    },
+    "workflow": [
+        "1. Look at Pi board sticker - note last 8 characters of serial",
+        "2. Add mapping here: serial -> friendly name",
+        "3. Print label with friendly name, stick on Pi enclosure",
+        "4. Flash Pi with generic cloud-init, deploy to location",
+        "5. Dashboard shows friendly name automatically"
+    ],
+    "notes": [
+        "Serial format: 10000000XXXXXXXX - use last 8 chars (XXXXXXXX)",
+        "Or run on Pi: cat /proc/cpuinfo | grep Serial",
+        "If hostname is customized, that takes precedence over serial"
+    ]
+}

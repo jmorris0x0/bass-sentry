@@ -1,0 +1,262 @@
+# Bass Sentry Test Fleet
+# Simulates a complete deployment with master + multiple fake Pi nodes
+#
+# Usage:
+#   docker compose -f docker-compose.test-fleet.yml up --build
+#
+# This creates:
+#   - Master node with InfluxDB, Grafana, MQTT, Graylog
+#   - 4 fake Pi nodes (1 reference + 3 remote)
+#   - All nodes send synthetic audio data
+#
+# Access:
+#   - Grafana: http://localhost:3001 (admin/grafanapass)
+#   - InfluxDB: http://localhost:8086 (admin/supersecret)
+#   - Graylog: http://localhost:9001 (admin/graylog-password)
+#
+# Verify:
+#   - Check Grafana dashboards for incoming data
+#   - Check Graylog for logs from all nodes
+#   - Run: docker compose -f docker-compose.test-fleet.yml logs -f fake-pi-*
+
+version: '3.8'
+
+x-environment: &global-environment
+  DOCKER_INFLUXDB_INIT_USERNAME: admin
+  DOCKER_INFLUXDB_INIT_PASSWORD: supersecret
+  DOCKER_INFLUXDB_INIT_ORG: myorg
+  DOCKER_INFLUXDB_INIT_BUCKET: mybucket
+  DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: 83A24B9B-BBF6-4A19-B9F5-5806D4BA8FBD
+
+services:
+  # =====================
+  # MASTER NODE SERVICES
+  # =====================
+
+  master-node:
+    build:
+      context: .
+      dockerfile: master-node/Dockerfile
+    depends_on:
+      - influxdb
+      - mosquitto
+    environment:
+      <<: *global-environment
+    networks:
+      - bass-sentry-net
+
+  # Web dashboard for correlation visualization
+  web-dashboard:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    depends_on:
+      - influxdb
+      - master-node
+      - mosquitto
+    ports:
+      - "5000:5000"
+    environment:
+      INFLUXDB_URL: "http://influxdb:8086"
+      INFLUXDB_TOKEN: "83A24B9B-BBF6-4A19-B9F5-5806D4BA8FBD"
+      INFLUXDB_ORG: "myorg"
+      INFLUXDB_BUCKET: "mybucket"
+      CORRELATION_IMAGE_DIR: "/tmp/correlation_images"
+      MQTT_HOST: "mosquitto"
+      MQTT_PORT: "1883"
+    volumes:
+      - correlation-images:/tmp/correlation_images
+    networks:
+      - bass-sentry-net
+
+  influxdb:
+    image: influxdb:2.7
+    volumes:
+      - influxdb-test-data:/var/lib/influxdb
+    environment:
+      <<: *global-environment
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      TZ: Etc/UTC
+    ports:
+      - "8086:8086"
+    networks:
+      - bass-sentry-net
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+    networks:
+      - bass-sentry-net
+
+  grafana:
+    image: grafana/grafana:11.0.0
+    volumes:
+      - grafana-test-data:/var/lib/grafana
+      - ./grafana-provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana-provisioning/dashboards:/etc/grafana/provisioning/dashboards
+    depends_on:
+      - influxdb
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: grafanapass
+      GF_SECURITY_ADMIN_USER: admin
+    networks:
+      - bass-sentry-net
+
+  # Graylog stack for centralized logging
+  graylog:
+    image: graylog/graylog:5.2
+    volumes:
+      - graylog-test-data:/usr/share/graylog/data
+      - ./graylog-contentpacks:/usr/share/graylog/data/contentpacks
+    ports:
+      - "9001:9000"
+      - "12201:12201/udp"
+    environment:
+      GRAYLOG_PASSWORD_SECRET: "basssentry16chars!"
+      GRAYLOG_ROOT_PASSWORD_SHA2: "7af18da763122b0bf251a6477401e593721e2e68e7dba880dbbfee6c40ab8229"
+      GRAYLOG_HTTP_EXTERNAL_URI: "http://localhost:9001/"
+      GRAYLOG_ELASTICSEARCH_HOSTS: "http://opensearch:9200"
+      GRAYLOG_MONGODB_URI: "mongodb://mongo:27017/graylog"
+    depends_on:
+      - mongo
+      - opensearch
+    networks:
+      - bass-sentry-net
+
+  # Auto-configure Graylog (creates GELF UDP input)
+  graylog-init:
+    image: curlimages/curl:latest
+    volumes:
+      - ./deployment/test-fleet/graylog-init.sh:/graylog-init.sh:ro
+    entrypoint: ["/bin/sh", "/graylog-init.sh"]
+    environment:
+      GRAYLOG_URL: "http://graylog:9000"
+      GRAYLOG_USER: "admin"
+      GRAYLOG_PASS: "graylog-password"
+    depends_on:
+      - graylog
+    networks:
+      - bass-sentry-net
+    restart: "no"
+
+  mongo:
+    image: mongo:6.0
+    volumes:
+      - mongo-test-data:/data/db
+    networks:
+      - bass-sentry-net
+
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - opensearch-test-data:/usr/share/opensearch/data
+    networks:
+      - bass-sentry-net
+
+  # =====================
+  # FAKE PI NODES
+  # =====================
+
+  # Reference node (at "stage")
+  fake-pi-stage:
+    build:
+      context: .
+      dockerfile: deployment/test-fleet/Dockerfile.fake-pi
+    environment:
+      PI_SERIAL: "STAGE001"
+      NODE_NAME: "stage"
+      MQTT_HOST: "mosquitto"
+      GRAYLOG_HOST: "graylog"
+      GRAYLOG_PORT: "12201"
+      USE_FAKE_AUDIO: "true"
+      IS_REFERENCE: "true"
+    depends_on:
+      - mosquitto
+      - master-node
+    networks:
+      - bass-sentry-net
+    restart: unless-stopped
+
+  # Remote node 1 - Dance Floor
+  fake-pi-dance-floor:
+    build:
+      context: .
+      dockerfile: deployment/test-fleet/Dockerfile.fake-pi
+    environment:
+      PI_SERIAL: "DANCE001"
+      NODE_NAME: "dance_floor"
+      MQTT_HOST: "mosquitto"
+      GRAYLOG_HOST: "graylog"
+      GRAYLOG_PORT: "12201"
+      USE_FAKE_AUDIO: "true"
+      IS_REFERENCE: "false"
+    depends_on:
+      - mosquitto
+      - master-node
+      - fake-pi-stage
+    networks:
+      - bass-sentry-net
+    restart: unless-stopped
+
+  # Remote node 2 - Back Bar
+  fake-pi-back-bar:
+    build:
+      context: .
+      dockerfile: deployment/test-fleet/Dockerfile.fake-pi
+    environment:
+      PI_SERIAL: "BACKBAR1"
+      NODE_NAME: "back_bar"
+      MQTT_HOST: "mosquitto"
+      GRAYLOG_HOST: "graylog"
+      GRAYLOG_PORT: "12201"
+      USE_FAKE_AUDIO: "true"
+      IS_REFERENCE: "false"
+    depends_on:
+      - mosquitto
+      - master-node
+      - fake-pi-stage
+    networks:
+      - bass-sentry-net
+    restart: unless-stopped
+
+  # Remote node 3 - Neighbor
+  fake-pi-neighbor:
+    build:
+      context: .
+      dockerfile: deployment/test-fleet/Dockerfile.fake-pi
+    environment:
+      PI_SERIAL: "NEIGH001"
+      NODE_NAME: "neighbor_north"
+      MQTT_HOST: "mosquitto"
+      GRAYLOG_HOST: "graylog"
+      GRAYLOG_PORT: "12201"
+      USE_FAKE_AUDIO: "true"
+      IS_REFERENCE: "false"
+    depends_on:
+      - mosquitto
+      - master-node
+      - fake-pi-stage
+    networks:
+      - bass-sentry-net
+    restart: unless-stopped
+
+networks:
+  bass-sentry-net:
+    driver: bridge
+
+volumes:
+  influxdb-test-data:
+  grafana-test-data:
+  graylog-test-data:
+  mongo-test-data:
+  opensearch-test-data:
+  correlation-images:
