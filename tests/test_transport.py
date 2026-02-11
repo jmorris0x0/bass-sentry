@@ -45,9 +45,9 @@ class TestMQTTTransport:
 
         transport = MQTTTransport({"broker": "localhost"})
 
-        # Simulate successful connection callback
+        # Simulate successful connection callback (v2 API: 5 params)
         def trigger_connect(*args):
-            transport._on_connect(mock_client, None, None, 0)
+            transport._on_connect(mock_client, None, None, 0, None)
 
         mock_client.connect.side_effect = trigger_connect
 
@@ -127,7 +127,7 @@ class TestMQTTTransport:
         transport.callbacks["test/topic2"] = callback
 
         # Simulate reconnect
-        transport._on_connect(mock_client, None, {"session_present": False}, 0)
+        transport._on_connect(mock_client, None, {"session_present": False}, 0, None)
 
         # Verify resubscription
         assert mock_client.subscribe.call_count == 2

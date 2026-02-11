@@ -55,7 +55,7 @@ services:
       - master-node
       - mosquitto
     ports:
-      - "5000:5000"
+      - "5001:5000"
     environment:
       INFLUXDB_URL: "http://influxdb:8086"
       INFLUXDB_TOKEN: "83A24B9B-BBF6-4A19-B9F5-5806D4BA8FBD"

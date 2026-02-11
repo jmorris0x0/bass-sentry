@@ -157,13 +157,13 @@ class DataManager:
 
     def _connect_to_mqtt(self, host, port):
         logger.info("Connecting to MQTT broker...")
-        client = mqtt.Client()
-        client.on_connect = self.on_connect  # Set the on_connect callback
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        client.on_connect = self.on_connect
         client.connect(host, port, 60)
         return client
 
-    def on_connect(self, client, userdata, flags, rc):
-        logger.info(f"Connected to MQTT broker with result code {rc}")
+    def on_connect(self, client, userdata, flags, reason_code, properties):
+        logger.info(f"Connected to MQTT broker with result code {reason_code}")
         self.subscribe_to_topics()
 
     def get_all_topics(self):

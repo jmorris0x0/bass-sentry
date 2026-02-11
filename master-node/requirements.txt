@@ -1,4 +1,4 @@
-paho-mqtt==1.5.1
+paho-mqtt>=2.0.0
 pandas
 influxdb-client
 zeroconf==0.33.4

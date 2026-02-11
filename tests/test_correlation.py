@@ -381,6 +381,249 @@ class TestChunkToCCStream:
             self.processor.rcc(np.array([]), np.array([]), 44100)
 
 
+class TestVenueDbFormula:
+    """Test the venue contribution extraction formula: venue_db = total_db + 20*log10(|rho|)."""
+
+    def setup_method(self):
+        ChunkToCCStream._reference_stream = None
+        ChunkToCCStream._remote_streams = {}
+        ChunkToCCStream._buffers = {}
+        ChunkToCCStream._db_history = {}
+        self.processor = ChunkToCCStream()
+
+    def test_identical_signals_venue_db_equals_total_db(self):
+        """When signals are identical (rho=1), venue_db should equal total_db."""
+        sig = np.sin(2 * np.pi * 100 * np.linspace(0, 1, 44100))
+        db, tau, rho, total_db, venue_db = self.processor.rcc(sig, sig, 44100)
+
+        # rho should be ~1 for identical signals
+        assert rho > 0.99
+        # venue_db = total_db + 20*log10(1) = total_db + 0
+        assert abs(venue_db - total_db) < 0.5  # Within 0.5 dB
+
+    def test_uncorrelated_noise_does_not_change_venue_db(self):
+        """Adding uncorrelated noise should not change venue_db (anechoic chamber property).
+
+        This is the core mathematical claim: venue_db extracts the venue
+        contribution regardless of environmental noise level.
+        """
+        fs = 44100
+        t = np.linspace(0, 1, fs)
+        venue_signal = 0.5 * np.sin(2 * np.pi * 100 * t)
+
+        # Scenario 1: Remote hears venue signal only (quiet environment)
+        remote_quiet = venue_signal.copy()
+        _, _, _, _, venue_db_quiet = self.processor.rcc(venue_signal, remote_quiet, fs)
+
+        # Scenario 2: Remote hears venue + loud uncorrelated noise
+        np.random.seed(42)
+        noise = 2.0 * np.random.randn(fs)  # Noise 4x louder than signal
+        remote_noisy = venue_signal + noise
+        _, _, _, _, venue_db_noisy = self.processor.rcc(venue_signal, remote_noisy, fs)
+
+        # venue_db should be similar in both cases
+        # Allow some tolerance due to finite signal length
+        assert abs(venue_db_quiet - venue_db_noisy) < 3.0  # Within 3 dB
+
+    def test_attenuated_signal_gives_lower_venue_db(self):
+        """Signal attenuated by factor alpha should reduce venue_db by 20*log10(alpha)."""
+        fs = 44100
+        t = np.linspace(0, 1, fs)
+        ref = np.sin(2 * np.pi * 100 * t)
+
+        alpha = 0.5  # -6 dB attenuation
+        remote = alpha * ref
+        _, _, _, _, venue_db = self.processor.rcc(ref, remote, fs)
+
+        # For identical but attenuated: rho ~ 1, total_db_remote is lower
+        # venue_db should reflect the actual attenuated level
+        _, _, _, total_db_full, venue_db_full = self.processor.rcc(ref, ref, fs)
+        expected_diff = 20 * np.log10(alpha)  # -6.02 dB
+        actual_diff = venue_db - venue_db_full
+        assert abs(actual_diff - expected_diff) < 1.0  # Within 1 dB
+
+    def test_zero_correlation_gives_neg_inf(self):
+        """Completely uncorrelated signals should give venue_db = -inf."""
+        fs = 44100
+        np.random.seed(1)
+        sig1 = np.random.randn(fs)
+        np.random.seed(2)
+        sig2 = np.random.randn(fs)
+
+        db, tau, rho, total_db, venue_db = self.processor.rcc(sig1, sig2, fs)
+
+        # rho should be near zero for uncorrelated noise
+        assert abs(rho) < 0.1
+        # venue_db should be very low (approaching -inf)
+        assert venue_db < total_db - 20  # At least 20 dB below total
+
+    def test_venue_db_formula_matches_manual_calculation(self):
+        """Verify venue_db matches the formula: total_db + 20*log10(|rho|)."""
+        fs = 44100
+        t = np.linspace(0, 1, fs)
+        ref = np.sin(2 * np.pi * 100 * t)
+
+        np.random.seed(42)
+        remote = 0.7 * ref + 0.3 * np.random.randn(fs)
+
+        db, tau, rho, total_db, venue_db = self.processor.rcc(ref, remote, fs)
+
+        # Manually compute expected venue_db
+        expected = total_db + 20 * np.log10(abs(rho))
+        assert abs(venue_db - expected) < 0.01  # Should match exactly
+
+
+class TestLA90AndAudibility:
+    """Test LA90 background level calculation and venue audibility."""
+
+    def setup_method(self):
+        ChunkToCCStream._db_history = {}
+
+    def test_la90_returns_none_with_insufficient_data(self):
+        """LA90 requires at least 10 samples."""
+        # No data at all
+        assert ChunkToCCStream.get_la90("remote_1") is None
+
+        # Add 5 samples (not enough)
+        for i in range(5):
+            ChunkToCCStream.record_db_measurement("remote_1", float(i), 60.0)
+        assert ChunkToCCStream.get_la90("remote_1") is None
+
+    def test_la90_returns_10th_percentile(self):
+        """LA90 should be the 10th percentile (level exceeded 90% of time)."""
+        # Create 100 measurements: values 1 through 100
+        for i in range(100):
+            ChunkToCCStream.record_db_measurement("remote_1", float(i), float(i + 1))
+
+        la90 = ChunkToCCStream.get_la90("remote_1")
+        assert la90 is not None
+        # 10th percentile of 1..100 should be ~10.9
+        assert abs(la90 - 10.9) < 1.0
+
+    def test_la90_with_constant_level(self):
+        """Constant level should give LA90 equal to that level."""
+        for i in range(20):
+            ChunkToCCStream.record_db_measurement("remote_1", float(i), 55.0)
+
+        la90 = ChunkToCCStream.get_la90("remote_1")
+        assert la90 is not None
+        assert abs(la90 - 55.0) < 0.01
+
+    def test_la90_window_pruning(self):
+        """Old measurements beyond the window should be pruned."""
+        base_time = 1000000.0
+
+        # Add old measurements (before the window)
+        for i in range(20):
+            ChunkToCCStream.record_db_measurement(
+                "remote_1",
+                base_time - ChunkToCCStream.LA90_WINDOW_SECONDS - 100 + i,
+                90.0,
+            )
+
+        # Add recent measurements within the window
+        for i in range(20):
+            ChunkToCCStream.record_db_measurement(
+                "remote_1", base_time + i, 50.0
+            )
+
+        la90 = ChunkToCCStream.get_la90("remote_1")
+        # Should only reflect recent measurements (50 dB), not old (90 dB)
+        assert la90 is not None
+        assert abs(la90 - 50.0) < 0.01
+
+    def test_stale_remote_id_cleanup(self):
+        """Remote IDs with no recent data should be cleaned up."""
+        base_time = 1000000.0
+
+        # Add data for stale_node long ago
+        for i in range(15):
+            ChunkToCCStream.record_db_measurement(
+                "stale_node",
+                base_time - ChunkToCCStream.LA90_WINDOW_SECONDS - 1000 + i,
+                60.0,
+            )
+
+        # Add data for active_node now, triggering cleanup
+        ChunkToCCStream.record_db_measurement("active_node", base_time, 55.0)
+
+        # stale_node should have been cleaned up
+        assert "stale_node" not in ChunkToCCStream._db_history
+        assert "active_node" in ChunkToCCStream._db_history
+
+    def test_la90_ignores_neg_inf(self):
+        """LA90 calculation should ignore -inf values."""
+        for i in range(15):
+            ChunkToCCStream.record_db_measurement("remote_1", float(i), 50.0)
+
+        # Add some -inf entries
+        for i in range(15, 20):
+            ChunkToCCStream.record_db_measurement("remote_1", float(i), -np.inf)
+
+        la90 = ChunkToCCStream.get_la90("remote_1")
+        # Should still return ~50 (ignoring -inf)
+        assert la90 is not None
+        assert abs(la90 - 50.0) < 0.01
+
+    def test_venue_audibility_calculation(self):
+        """Test that venue_audibility = venue_db - la90 in the process flow."""
+        # This tests the integration of LA90 into the correlation result.
+        # We populate enough history to get an LA90, then run correlation.
+        processor = ChunkToCCStream()
+        ChunkToCCStream._reference_stream = None
+        ChunkToCCStream._remote_streams = {}
+        ChunkToCCStream._buffers = {}
+
+        # Pre-populate LA90 history for remote_1 using realistic timestamps
+        import time as time_mod
+        now = time_mod.time()
+        for i in range(20):
+            ChunkToCCStream.record_db_measurement("remote_1", now - 20 + i, 45.0)
+
+        la90 = ChunkToCCStream.get_la90("remote_1")
+        assert la90 is not None
+        assert abs(la90 - 45.0) < 0.01
+
+        # Now run a correlation to get venue_audibility
+        fs = 44100
+        t = np.linspace(0, 1, fs)
+        audio = np.sin(2 * np.pi * 100 * t)
+        chunk_size = int(fs * 0.5)
+
+        def make_chunk(data, ts, station, tags=None):
+            return {
+                "station_id": station,
+                "data_type": "audio_chunk",
+                "data": data.tolist(),
+                "timestamp": ts,
+                "time_precision": "ns",
+                "metadata": {"sample_rate": fs, "bit_depth": 16, "location": "test", "tags": tags or []},
+            }
+
+        # Send reference chunks
+        for i in range(0, len(audio), chunk_size):
+            chunk_data = audio[i:i + chunk_size]
+            if len(chunk_data) == chunk_size:
+                ts = int(1e9) + i * int(1e9 / fs)
+                processor.process(make_chunk(chunk_data, ts, "ref_node", ["reference"]))
+
+        # Send remote chunks
+        result = None
+        for i in range(0, len(audio), chunk_size):
+            chunk_data = audio[i:i + chunk_size]
+            if len(chunk_data) == chunk_size:
+                ts = int(1e9) + i * int(1e9 / fs)
+                result = processor.process(make_chunk(chunk_data, ts, "remote_1"))
+
+        assert result is not None
+        (remote_id, db, tau, corr_coef, confidence, data_quality,
+         total_db_remote, venue_db, la90_result, venue_audibility) = result[0]
+
+        # venue_audibility should be venue_db - la90
+        assert venue_audibility is not None
+        assert abs(venue_audibility - (venue_db - la90_result)) < 0.01
+
+
 class TestDataHandler:
     """Test the DataHandler class."""
 

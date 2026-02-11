@@ -1,5 +1,5 @@
 flask
 flask-socketio
 influxdb-client
-paho-mqtt
+paho-mqtt>=2.0.0
 eventlet

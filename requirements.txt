@@ -1,6 +1,6 @@
 # requirements.txt
 # Existing dependencies
-paho-mqtt
+paho-mqtt>=2.0.0
 zeroconf
 numpy
 ntplib

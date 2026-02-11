@@ -211,15 +211,15 @@ class MQTTCorrelationSource:
 
     def __init__(self, viewer, broker, port=1883, topic="correlation/#"):
         self.viewer = viewer
-        self.client = mqtt.Client()
+        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
 
         self.client.connect(broker, port, 60)
         self.topic = topic
 
-    def on_connect(self, client, userdata, flags, rc):
-        print(f"Connected to MQTT broker with result code {rc}")
+    def on_connect(self, client, userdata, flags, reason_code, properties):
+        print(f"Connected to MQTT broker with result code {reason_code}")
         self.client.subscribe(self.topic)
         print(f"Subscribed to {self.topic}")
 

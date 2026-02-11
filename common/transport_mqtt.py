@@ -49,8 +49,8 @@ class MQTTTransport(Transport):
         self.connect_retries = config.get("connect_retries", 3)
         self.retry_backoff = config.get("retry_backoff", 2.0)
 
-        # Create MQTT client
-        self.client = mqtt.Client(client_id=self.client_id)
+        # Create MQTT client (v2 callback API)
+        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=self.client_id)
 
         # Set authentication if provided
         username = config.get("username")
@@ -181,9 +181,9 @@ class MQTTTransport(Transport):
         # Subscribe
         self.client.subscribe(topic, qos=self.qos)
 
-    def _on_connect(self, client, userdata, flags, rc):
-        """MQTT connection callback."""
-        if rc == 0:
+    def _on_connect(self, client, userdata, flags, reason_code, properties):
+        """MQTT connection callback (v2 API)."""
+        if reason_code == 0:
             logger.info("MQTT connected successfully")
             self.connected = True
 
@@ -192,14 +192,14 @@ class MQTTTransport(Transport):
                 logger.info(f"Resubscribing to {topic}")
                 self.client.subscribe(topic, qos=self.qos)
         else:
-            logger.error(f"MQTT connection failed with code {rc}")
+            logger.error(f"MQTT connection failed with code {reason_code}")
             self.connected = False
 
-    def _on_disconnect(self, client, userdata, rc):
-        """MQTT disconnection callback."""
+    def _on_disconnect(self, client, userdata, flags, reason_code, properties):
+        """MQTT disconnection callback (v2 API)."""
         self.connected = False
-        if rc != 0:
-            logger.warning(f"MQTT unexpected disconnect (rc={rc}), will reconnect")
+        if reason_code != 0:
+            logger.warning(f"MQTT unexpected disconnect (rc={reason_code}), will reconnect")
             self.stats["reconnects"] += 1
         else:
             logger.info("MQTT disconnected")
