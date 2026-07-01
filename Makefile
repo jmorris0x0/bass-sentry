@@ -1,6 +1,10 @@
-.PHONY: help install test lint format clean run stop all
+.PHONY: help install test lint format clean run stop all fleet-update fleet-status fleet-logs
 
 .DEFAULT_GOAL := help
+
+NODES ?= sound-pi-1 sound-pi-2 sound-pi-3
+SSH_USER ?= sound
+SERVICE = bass_sentry_remote_node
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } ' $(MAKEFILE_LIST)
@@ -38,3 +42,18 @@ clean: ## Clean temporary files
 
 all: clean lint test ## Clean, lint, and test everything
 	@echo "\n✓ All checks passed"
+
+fleet-update: ## git pull + restart service on every node in $(NODES)
+	@for h in $(NODES); do echo "== $$h =="; \
+	  ssh $(SSH_USER)@$$h.local 'cd bass-sentry && git pull --ff-only && sudo systemctl restart $(SERVICE)' ; \
+	done
+
+fleet-status: ## Show service state on every node
+	@for h in $(NODES); do printf "%-15s " $$h; \
+	  ssh $(SSH_USER)@$$h.local "systemctl is-active $(SERVICE)" ; \
+	done
+
+fleet-logs: ## Tail last 20 lines of service logs on every node
+	@for h in $(NODES); do echo "== $$h =="; \
+	  ssh $(SSH_USER)@$$h.local "sudo journalctl -u $(SERVICE) -n 20 --no-pager" ; \
+	done

@@ -66,15 +66,20 @@ See [TRANSPORTS.md](docs/TRANSPORTS.md) for complete transport guide.
 
 ### Remote Nodes (Raspberry Pi)
 
-See **[docs/NODE_PROVISIONING.md](docs/NODE_PROVISIONING.md)** for the complete provisioning guide.
+1. Flash SD with `rpi-imager` → Advanced Options: set hostname (`sound-pi-1/2/3`), user `sound`, WiFi, SSH key.
+2. Boot the Pi, wait ~3 min for it to appear on the network.
+3. SSH in and run:
+   ```
+   curl -sfL https://raw.githubusercontent.com/jmorris0x0/bass-sentry/master/bootstrap.sh | bash -s pi-1.json
+   ```
+   (`pi-2.json` / `pi-3.json` for the other nodes.)
 
-Quick version:
-1. Note the Pi serial number from the board sticker (last 8 chars)
-2. Add serial→name mapping to `config/node_names.json`
-3. Flash SD card with Raspberry Pi OS Lite + cloud-init files
-4. Deploy - node auto-registers with its friendly name
+The bootstrap installs system packages, clones the repo, creates a venv, and registers the `bass_sentry_remote_node` systemd service. See `bootstrap.sh` and `remote-node-setup.sh`.
 
-For manual setup: `./remote-node-setup.sh pi-3.json`
+Fleet ops from your workstation (see `Makefile`):
+- `make fleet-update` — `git pull` + service restart on all nodes
+- `make fleet-status` — active/inactive per node
+- `make fleet-logs` — tail 20 lines of `journalctl` per node
 
 ## Usage
 
@@ -167,7 +172,6 @@ The simulator generates venue layouts, correlation visualizations, and accuracy 
 
 ## Documentation
 
-- **[docs/NODE_PROVISIONING.md](docs/NODE_PROVISIONING.md)** - How to set up and deploy Raspberry Pi nodes
 - **[docs/CODE_GUIDE.md](docs/CODE_GUIDE.md)** - Quick reference for understanding the codebase
 - **[docs/TRANSPORTS.md](docs/TRANSPORTS.md)** - Guide to communication options (MQTT, LoRa, HTTP, Serial)
 - **STATUS.md** - Current project status, test results, recent improvements
