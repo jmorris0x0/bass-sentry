@@ -255,8 +255,23 @@ class TransportHandler:
 
     def publisher(self):
         """Publisher thread that handles message queue with offline buffering."""
+        last_transport_connected = True
         while self._running:
             try:
+                # On reconnect edge, burst-drain the buffer in original order
+                # before pulling any new messages from the queue.
+                now_transport_connected = self.transport.is_connected()
+                if (
+                    now_transport_connected
+                    and not last_transport_connected
+                    and self.offline_buffer
+                ):
+                    logger.info(
+                        f"Reconnected: flushing {len(self.offline_buffer)} buffered messages"
+                    )
+                    self._flush_offline_buffer()
+                last_transport_connected = now_transport_connected
+
                 message = self.message_queue.get(timeout=0.1)
 
                 if self.is_connected and self.transport.is_connected():
