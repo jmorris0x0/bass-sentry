@@ -199,28 +199,70 @@ def recorder(data_queue, sample_counter, time_sync_manager):
         time_sync=time_sync_manager,
     )
 
-    stream = sd.InputStream(
-        device=INPUT_DEVICE,
-        callback=callback_with_queue,
-        channels=CHANNELS,
-        dtype=FORMAT,
-        samplerate=RATE,
-        blocksize=CHUNK,
-        finished_callback=lambda: logger.info("Stream finished"),
-    )
-    try:
-        with stream:
-            while True:
-                time.sleep(0.1)
+    # Watchdog: track when a callback last fired so we can detect a silently-dead
+    # audio stream (USB device reset does not raise, callbacks just stop).
+    last_callback = [time.monotonic()]
 
-                # Periodically log time sync status
-                if sample_counter.value % (SENDING_RATE * 60) == 0:  # Every minute
-                    stats = time_sync_manager.get_stats()
-                    logger.debug(
-                        f"Time sync: offset={stats['last_offset_seconds']*1000:.1f}ms, "
-                        f"drift={stats['drift_ppm']:.2f}ppm"
-                    )
+    def timing_callback(indata, frames, tinfo, status):
+        last_callback[0] = time.monotonic()
+        callback_with_queue(indata, frames, tinfo, status)
+
+    def open_stream():
+        # Re-query the device by name in case the USB reset changed its index.
+        info = get_input_device()
+        return sd.InputStream(
+            device=int(info["index"]),
+            callback=timing_callback,
+            channels=CHANNELS,
+            dtype=FORMAT,
+            samplerate=int(info["default_samplerate"]),
+            blocksize=CHUNK,
+            finished_callback=lambda: logger.info("Stream finished"),
+        )
+
+    WATCHDOG_TIMEOUT = 3.0  # seconds without a callback -> assume stream is dead
+
+    stream = open_stream()
+    stream.start()
+    try:
+        while True:
+            time.sleep(0.5)
+
+            silence = time.monotonic() - last_callback[0]
+            if silence > WATCHDOG_TIMEOUT:
+                logger.warning(
+                    f"Audio callback silent for {silence:.1f}s, reopening stream"
+                )
+                try:
+                    stream.stop()
+                    stream.close()
+                except Exception as e:
+                    logger.warning(f"Error closing stalled stream: {e}")
+                time.sleep(0.5)  # let the USB stack settle
+                try:
+                    stream = open_stream()
+                    stream.start()
+                    logger.info("Audio stream reopened")
+                except Exception as e:
+                    logger.error(f"Failed to reopen stream: {e}, will retry in 1s")
+                    time.sleep(1.0)
+                # reset watchdog either way so we don't retry every 500ms
+                last_callback[0] = time.monotonic()
+                continue
+
+            # Periodically log time sync status
+            if sample_counter.value % (SENDING_RATE * 60) == 0:  # Every minute
+                stats = time_sync_manager.get_stats()
+                logger.debug(
+                    f"Time sync: offset={stats['last_offset_seconds']*1000:.1f}ms, "
+                    f"drift={stats['drift_ppm']:.2f}ppm"
+                )
     except KeyboardInterrupt:
+        try:
+            stream.stop()
+            stream.close()
+        except Exception:
+            pass
         logger.info("Recording stopped by user")
         return
 
