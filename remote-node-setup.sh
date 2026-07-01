@@ -35,8 +35,10 @@ SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
 sudo bash -c "cat > $SERVICE_FILE" <<EOL
 [Unit]
 Description=Bass Sentry Remote Node Service
-After=network-online.target time-sync.target
+After=network-online.target time-sync.target sound.target
 Wants=network-online.target time-sync.target
+# Never give up trying to bring the node back.
+StartLimitIntervalSec=0
 
 [Service]
 ExecStart=$PYTHON_EXEC $REPO_DIR/remote-node/remote_node.py $REPO_DIR/remote-node/dag_files/$DAG_FILE
@@ -44,6 +46,7 @@ WorkingDirectory=$REPO_DIR/remote-node
 StandardOutput=inherit
 StandardError=inherit
 Restart=always
+RestartSec=10
 User=$USER
 
 [Install]
