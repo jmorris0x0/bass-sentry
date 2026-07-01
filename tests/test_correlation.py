@@ -226,6 +226,187 @@ class TestChunkToCCStream:
         assert data_quality > 0.99
         # Just verify we got a result, correlation strength depends on SNR
 
+    def _feed_ref_remote_chunks(
+        self,
+        reference,
+        remote,
+        chunk_sample_rate,
+        chunk_size,
+        ref_ts_start_ns,
+        remote_ts_start_ns,
+    ):
+        """Feed a reference/remote pair through the processor.
+
+        Returns the last non-None process() result.
+        """
+        ns_per_chunk = int(chunk_size / chunk_sample_rate * 1e9)
+
+        for i in range(0, len(reference), chunk_size):
+            chunk_data = reference[i : i + chunk_size]
+            if len(chunk_data) != chunk_size:
+                continue
+            timestamp = ref_ts_start_ns + (i // chunk_size) * ns_per_chunk
+            self.processor.process(self.create_audio_chunk(
+                chunk_data, timestamp, chunk_sample_rate, "ref_node",
+                tags=["reference"],
+            ))
+
+        last_result = None
+        for i in range(0, len(remote), chunk_size):
+            chunk_data = remote[i : i + chunk_size]
+            if len(chunk_data) != chunk_size:
+                continue
+            timestamp = remote_ts_start_ns + (i // chunk_size) * ns_per_chunk
+            r = self.processor.process(self.create_audio_chunk(
+                chunk_data, timestamp, chunk_sample_rate, "remote_1", tags=[],
+            ))
+            if r is not None:
+                last_result = r
+        return last_result
+
+    def test_delay_detection_with_aligned_chunk_timestamps(self):
+        """Control: aligned chunk timestamps should recover the true delay.
+
+        This exists so that if it also fails, we know the correlation math
+        itself is broken (not just alignment).
+        """
+        chunk_sr = 1000  # matches grid_decimation output rate
+        chunk_size = 500  # 500ms chunks
+        true_delay_s = 0.005  # 5 ms — physical delay for mics ~1.7 m apart
+
+        config = SignalConfig(
+            signal_type=SignalType.SINE,
+            duration=4.0,
+            sample_rate=chunk_sr,
+            frequency=80.0,
+            amplitude=1.0,
+        )
+        reference, remote = self.generator.generate_reference_and_remote(
+            source_config=config,
+            delay_seconds=true_delay_s,
+            signal_attenuation=1.0,
+            snr_db=40,
+        )
+
+        # Ref and remote share the same chunk-emission grid.
+        ts0 = int(1e9)  # arbitrary epoch offset
+        result = self._feed_ref_remote_chunks(
+            reference, remote, chunk_sr, chunk_size,
+            ref_ts_start_ns=ts0, remote_ts_start_ns=ts0,
+        )
+        assert result is not None, "no correlation result produced"
+        _, _, tau, corr_coef, _, data_quality, *_ = result[0]
+
+        assert corr_coef > 0.8, f"weak correlation: rho={corr_coef}"
+        detected_ms = tau * 1000
+        expected_ms = true_delay_s * 1000
+        assert abs(detected_ms - expected_ms) < 3.0, (
+            f"aligned case: delay reported as {detected_ms:.1f}ms, "
+            f"expected ~{expected_ms:.1f}ms, quality={data_quality:.1%}"
+        )
+
+    def test_delay_detection_with_offset_chunk_timestamps(self):
+        """Reproduces the party-night bug: nodes emit chunks on different
+        500ms cadences because their recorder subprocesses start at
+        different wallclock times. Correlation math should recover the
+        true acoustic delay regardless of chunk-emission offset.
+        """
+        chunk_sr = 1000
+        chunk_size = 500  # 500ms chunks
+        true_delay_s = 0.005
+        # Remote's chunk cadence is offset from reference by 100 ms —
+        # sub-chunk, not on the 500 ms boundary.
+        chunk_grid_offset_ns = 100_000_000
+
+        config = SignalConfig(
+            signal_type=SignalType.SINE,
+            duration=4.0,
+            sample_rate=chunk_sr,
+            frequency=80.0,
+            amplitude=1.0,
+        )
+        reference, remote = self.generator.generate_reference_and_remote(
+            source_config=config,
+            delay_seconds=true_delay_s,
+            signal_attenuation=1.0,
+            snr_db=40,
+        )
+
+        ts0 = int(1e9)
+        result = self._feed_ref_remote_chunks(
+            reference, remote, chunk_sr, chunk_size,
+            ref_ts_start_ns=ts0,
+            remote_ts_start_ns=ts0 + chunk_grid_offset_ns,
+        )
+        assert result is not None, "no correlation result produced"
+        _, _, tau, corr_coef, _, data_quality, *_ = result[0]
+
+        detected_ms = tau * 1000
+        expected_ms = true_delay_s * 1000
+        # The bug reports delay ~= chunk_grid_offset_ns (or ±500ms
+        # aliased) instead of the acoustic delay. This assertion
+        # should fail today and pass once alignment is fixed.
+        assert abs(detected_ms - expected_ms) < 3.0, (
+            f"offset case: delay reported as {detected_ms:.1f}ms, "
+            f"expected ~{expected_ms:.1f}ms, rho={corr_coef:.3f}, "
+            f"quality={data_quality:.1%}"
+        )
+
+    def test_delay_detection_with_periodic_beat(self):
+        """Reproduces the party-night bug: periodic music (steady kick drum,
+        120 BPM claps) produces cross-correlation aliases at multiples of
+        the beat period. Without a lag constraint the peak picker locks
+        onto an aliased peak instead of the acoustic delay.
+        """
+        chunk_sr = 1000
+        chunk_size = 500  # 500ms chunks
+        true_delay_s = 0.005  # 5 ms — mics ~1.7 m apart
+        duration_s = 4.0
+
+        # 120 BPM = 2 Hz beat. Build an impulse train at 2 Hz plus a
+        # damped bass thud, sampled at chunk_sr.
+        n = int(duration_s * chunk_sr)
+        t = np.arange(n) / chunk_sr
+        beat_period_s = 0.5
+        reference = np.zeros(n)
+        for beat_start in np.arange(0, duration_s, beat_period_s):
+            i0 = int(beat_start * chunk_sr)
+            # A short decaying 80Hz burst — imitates a bass thud
+            burst_len = int(0.15 * chunk_sr)
+            i1 = min(i0 + burst_len, n)
+            burst_t = np.arange(i1 - i0) / chunk_sr
+            reference[i0:i1] += np.sin(2 * np.pi * 80 * burst_t) * np.exp(-burst_t / 0.05)
+
+        # Delayed copy + a tiny bit of noise
+        delay_samples = int(round(true_delay_s * chunk_sr))
+        remote = np.zeros_like(reference)
+        remote[delay_samples:] = reference[: n - delay_samples]
+        rng = np.random.default_rng(0)
+        remote = remote + rng.normal(scale=0.02, size=n)
+
+        ts0 = int(1e9)
+        result = self._feed_ref_remote_chunks(
+            reference, remote, chunk_sr, chunk_size,
+            ref_ts_start_ns=ts0, remote_ts_start_ns=ts0,
+        )
+        assert result is not None, "no correlation result produced"
+        _, _, tau, corr_coef, _, data_quality, *_ = result[0]
+
+        detected_ms = tau * 1000
+        expected_ms = true_delay_s * 1000
+        # A physical venue is at most ~100 m across, so any delay
+        # beyond ±300 ms is nonsense. The current code will happily
+        # report ±500 ms because it has no lag constraint.
+        assert abs(detected_ms) < 300.0, (
+            f"delay {detected_ms:.1f}ms is outside any physical venue; "
+            f"correlation peak picker locked onto a periodic alias "
+            f"(rho={corr_coef:.3f})"
+        )
+        assert abs(detected_ms - expected_ms) < 5.0, (
+            f"periodic beat: delay reported as {detected_ms:.1f}ms, "
+            f"expected ~{expected_ms:.1f}ms, rho={corr_coef:.3f}"
+        )
+
     def test_multiple_remote_nodes(self):
         """Test correlation with multiple remote nodes."""
         config = SignalConfig(
