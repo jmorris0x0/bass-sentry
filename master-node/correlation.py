@@ -379,6 +379,10 @@ class ChunkToCCStream(DataProcessor):
     )
     MIN_DATA_QUALITY = 0.6  # Minimum 60% good data required for correlation
     LA90_WINDOW_SECONDS = 600  # 10 minute window for LA90 calculation
+    # Physical upper bound on peak-search lag. 1 s covers ~343 m of
+    # sound propagation. Wider = admits more periodic aliases; tighter =
+    # can't measure large venues. Configurable per deployment.
+    MAX_LAG_SECONDS = 1.0
 
     # Class-level shared state so all instances share the same reference stream
     _reference_stream = None
@@ -851,13 +855,25 @@ class ChunkToCCStream(DataProcessor):
         # Lag array: negative lags mean sig2 leads sig1, positive means sig2 lags
         lags = np.arange(-n + 1, n)
 
-        # Find peak correlation
-        peak_idx = np.argmax(np.abs(cc))
+        # Constrain peak search to physically plausible lags. Sound
+        # propagation between stations is bounded by MAX_LAG_SECONDS *
+        # speed_of_sound; anything outside this range cannot be a real
+        # acoustic delay. Excludes periodic-signal aliases that would
+        # otherwise let the argmax lock onto a peak at ±(N × beat_period)
+        # instead of the true delay.
+        max_lag_samples = int(ChunkToCCStream.MAX_LAG_SECONDS * fs)
+        center = n - 1  # index of lag = 0 in the length-(2n-1) axis
+        lo = max(0, center - max_lag_samples)
+        hi = min(len(cc), center + max_lag_samples + 1)
+
+        # Peak within the physical search window
+        window_offset = int(np.argmax(np.abs(cc[lo:hi])))
+        peak_idx = lo + window_offset
         shift = lags[peak_idx]
         tau = shift / fs
 
         # Calculate amplitude and convert to dB
-        amplitude = np.abs(cc[np.argmax(np.abs(cc))])
+        amplitude = np.abs(cc[peak_idx])
 
         # Avoid log(0) errors
         if amplitude < 1e-10:
