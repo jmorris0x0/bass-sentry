@@ -327,6 +327,10 @@ def main():
     )
     args = parser.parse_args()
 
+    # Python 3.13+ on Debian defaults to spawn, which requires picklable Process args.
+    # TimeSync holds a threading.Lock and is passed into a Process below, so force fork.
+    multiprocessing.set_start_method("fork", force=True)
+
     logger = setup_logging()
 
     # Read the JSON configuration file
