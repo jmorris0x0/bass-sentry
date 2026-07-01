@@ -41,8 +41,6 @@ def get_input_device():
         return sd.query_devices(kind="input")
 
 
-device_info = get_input_device()
-
 BIT_DEPTH = 16  # Default to 16 if subtype is not PCM
 
 DATA_TYPE_MAPPING = {
@@ -55,8 +53,20 @@ FORMAT = DATA_TYPE_MAPPING[BIT_DEPTH]
 TP_FACTORS = {"ns": 1e9, "us": 1e6, "ms": 1e3, "s": 1}
 TIME_PRECISION = "ns"
 TP_FACTOR = TP_FACTORS[TIME_PRECISION]
-RATE = int(device_info["default_samplerate"])
-INPUT_DEVICE = int(device_info["index"])
+
+# Best-effort device query at import time. If USB audio isn't present now
+# (over-current event, physical disconnect, cold boot before enumeration),
+# fall through with safe defaults so the process can still start. The
+# recorder subprocess re-queries and waits for the device to appear.
+try:
+    device_info = get_input_device()
+    RATE = int(device_info["default_samplerate"])
+    INPUT_DEVICE = int(device_info["index"])
+except Exception as e:
+    logging.warning(f"Audio device not available at import: {e}. Will retry in recorder.")
+    RATE = 44100
+    INPUT_DEVICE = -1
+
 CHANNELS = 1
 SENDING_RATE = 2  # Hz
 CHUNK = int(RATE / SENDING_RATE)
@@ -210,8 +220,11 @@ def recorder(data_queue, sample_counter, time_sync_manager):
     def open_stream():
         # Re-query the device by name in case the USB reset changed its index.
         info = get_input_device()
+        idx = int(info["index"])
+        if idx < 0:
+            raise RuntimeError("no input device available")
         return sd.InputStream(
-            device=int(info["index"]),
+            device=idx,
             callback=timing_callback,
             channels=CHANNELS,
             dtype=FORMAT,
@@ -220,10 +233,28 @@ def recorder(data_queue, sample_counter, time_sync_manager):
             finished_callback=lambda: logger.info("Stream finished"),
         )
 
+    def wait_for_device_and_open(max_attempt_log_interval=10):
+        # Poll until the USB audio device is present. Runs on cold start when
+        # the device hadn't enumerated yet, and after a USB reset if the
+        # stream reopen fails because the device is temporarily gone.
+        attempt = 0
+        while True:
+            try:
+                s = open_stream()
+                s.start()
+                logger.info("Audio stream open")
+                return s
+            except Exception as e:
+                attempt += 1
+                if attempt % max_attempt_log_interval == 1:
+                    logger.warning(
+                        f"Waiting for input device (attempt {attempt}): {e}"
+                    )
+                time.sleep(1.0)
+
     WATCHDOG_TIMEOUT = 3.0  # seconds without a callback -> assume stream is dead
 
-    stream = open_stream()
-    stream.start()
+    stream = wait_for_device_and_open()
     try:
         while True:
             time.sleep(0.5)
@@ -239,14 +270,12 @@ def recorder(data_queue, sample_counter, time_sync_manager):
                 except Exception as e:
                     logger.warning(f"Error closing stalled stream: {e}")
                 time.sleep(0.5)  # let the USB stack settle
-                try:
-                    stream = open_stream()
-                    stream.start()
-                    logger.info("Audio stream reopened")
-                except Exception as e:
-                    logger.error(f"Failed to reopen stream: {e}, will retry in 1s")
-                    time.sleep(1.0)
-                # reset watchdog either way so we don't retry every 500ms
+                # Wait indefinitely for the device to be available. Blocks
+                # here (no CPU spin) if USB is physically unplugged so we
+                # don't crash the whole process — recovers automatically
+                # when the device comes back.
+                stream = wait_for_device_and_open()
+                # reset watchdog so we don't immediately re-trip
                 last_callback[0] = time.monotonic()
                 continue
 
