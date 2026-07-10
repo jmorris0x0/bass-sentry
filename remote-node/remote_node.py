@@ -97,13 +97,43 @@ def setup_logging():
     )
     logger = logging.getLogger(__name__)
 
-    # Add Graylog handler if configured
+    # Autodetect Graylog host if not explicitly set: reuse the same
+    # mDNS record the MQTT transport uses to find the master. Master
+    # advertises _telemetryservice._tcp via advertise-service.sh, and
+    # Graylog runs on the same host at UDP 12201. Short timeout so a
+    # missing master doesn't stall process startup.
     graylog_host = os.environ.get("GRAYLOG_HOST")
+    if not graylog_host:
+        try:
+            from zeroconf import Zeroconf, ServiceBrowser
+            import socket as _sock
+            zc = Zeroconf()
+            found = {"host": None}
+
+            class _Listener:
+                def add_service(self, zc, type_, name):
+                    info = zc.get_service_info(type_, name, timeout=1500)
+                    if info and info.addresses:
+                        found["host"] = _sock.inet_ntoa(info.addresses[0])
+                def remove_service(self, *a, **k): pass
+                def update_service(self, *a, **k): pass
+            ServiceBrowser(zc, "_telemetryservice._tcp.local.", _Listener())
+            for _ in range(20):
+                if found["host"]: break
+                time.sleep(0.1)
+            zc.close()
+            if found["host"]:
+                graylog_host = found["host"]
+                logger.info(f"Graylog host auto-discovered: {graylog_host}")
+        except Exception as e:
+            logger.debug(f"Graylog auto-discovery skipped: {e}")
+
     if graylog_host:
         try:
             import graypy
+            import socket
             graylog_port = int(os.environ.get("GRAYLOG_PORT", "12201"))
-            node_name = os.environ.get("NODE_NAME", "unknown")
+            node_name = os.environ.get("NODE_NAME") or socket.gethostname()
 
             handler = graypy.GELFUDPHandler(graylog_host, graylog_port)
             # Add node identifier to all log messages
