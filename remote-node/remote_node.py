@@ -302,9 +302,26 @@ def sender(data_queue, config):
     # Extract transport configuration (if provided)
     transport_config = config.get("transport", None)
 
-    telemetry = TelemetrySender(
-        topic_suffix="remote_node", transport_config=transport_config
-    )
+    # Retry TelemetrySender setup indefinitely. Construction calls
+    # discover_service() (raises after 60 attempts) and transport connect
+    # (raises after 3 attempts). If the master is briefly unavailable —
+    # restarted, WiFi hiccup, mDNS not yet advertising — the original code
+    # would kill this subprocess, leaving the parent stuck on recorder.join()
+    # forever with no way to recover. Now we keep retrying with backoff
+    # until we get a working telemetry sender.
+    backoff = 5
+    while True:
+        try:
+            telemetry = TelemetrySender(
+                topic_suffix="remote_node", transport_config=transport_config
+            )
+            break
+        except Exception as e:
+            logger.warning(
+                f"TelemetrySender setup failed ({e}); retrying in {backoff}s"
+            )
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 60)
     prev_timestamp = None
     dropped_chunks = 0
     total_chunks = 0
@@ -440,9 +457,24 @@ def main():
     signal.signal(signal.SIGINT, handler)
 
     try:
-        # Use try-finally to ensure cleanup
-        recorder_process.join()
-        sender_process.join()
+        # Poll both subprocesses. If either dies unexpectedly, exit main
+        # with an error so systemd restarts the whole thing. Prior behavior
+        # (blocking join on recorder) meant a dead sender could stay dead
+        # forever while systemd still thought the service was healthy.
+        while True:
+            if not recorder_process.is_alive():
+                logger.error(
+                    f"Recorder subprocess exited (code={recorder_process.exitcode}); "
+                    f"failing whole service so systemd restarts it"
+                )
+                sys.exit(1)
+            if not sender_process.is_alive():
+                logger.error(
+                    f"Sender subprocess exited (code={sender_process.exitcode}); "
+                    f"failing whole service so systemd restarts it"
+                )
+                sys.exit(1)
+            time.sleep(1.0)
     except KeyboardInterrupt:
         logger.info("Keyboard interrupt received, terminating processes...")
         signal_handler(recorder_process, sender_process, time_sync_manager, None, None)
