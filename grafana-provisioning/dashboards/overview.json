@@ -691,46 +691,7 @@
   "style": "dark",
   "tags": [],
   "templating": {
-    "list": [
-      {
-        "name": "location",
-        "type": "query",
-        "label": "Location",
-        "description": "Select monitoring location(s)",
-        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"mybucket\", tag: \"location\")",
-        "datasource": {
-          "type": "influxdb",
-          "uid": "${DS_INFLUXDB}"
-        },
-        "refresh": 2,
-        "multi": true,
-        "includeAll": true,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        }
-      },
-      {
-        "name": "band",
-        "type": "query",
-        "label": "Frequency Band",
-        "description": "Select frequency band(s)",
-        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"mybucket\", tag: \"band\")",
-        "datasource": {
-          "type": "influxdb",
-          "uid": "${DS_INFLUXDB}"
-        },
-        "refresh": 2,
-        "multi": true,
-        "includeAll": true,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        }
-      }
-    ]
+    "list": []
   },
   "time": {
     "from": "now-15m",
