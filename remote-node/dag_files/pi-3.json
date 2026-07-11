@@ -3,7 +3,10 @@
     "steps": {
         "start": {
             "type": "start",
-            "next": ["1", "2", "4"]
+            "next": [
+                "1",
+                "2"
+            ]
         },
         "1": {
             "type": "dbfs_measurement",
@@ -15,32 +18,12 @@
                 "low_cut": 35,
                 "high_cut": 85
             },
-            "next": ["3"]
+            "next": [
+                "3"
+            ]
         },
         "3": {
             "type": "dbfs_measurement",
-            "next": []
-        },
-        "4": {
-            "type": "bandpass_filter",
-            "params": {
-                "low_cut": 35,
-                "high_cut": 250
-            },
-            "next": ["5"]
-        },
-        "5": {
-            "type": "grid_decimation_resample",
-            "params": {
-                "new_sample_rate": 1000
-            },
-            "next": ["6"]
-        },
-        "6": {
-            "type": "metadata_tagger",
-            "params": {
-                "tag": "remote"
-            },
             "next": []
         }
     }
