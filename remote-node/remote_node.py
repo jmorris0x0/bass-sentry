@@ -75,6 +75,12 @@ except Exception as e:
 CHANNELS = 1
 SENDING_RATE = 2  # Hz
 CHUNK = int(RATE / SENDING_RATE)
+
+# Cache for one-shot Graylog auto-discovery. Sentinel distinguishes
+# "not yet queried" from "queried and found nothing".
+_SENTINEL = object()
+_CACHED_GRAYLOG_HOST = _SENTINEL
+_GRAYLOG_LOGGED = False
 # Maximum queue size to prevent memory exhaustion (max ~30 seconds of buffering)
 MAX_QUEUE_SIZE = 60  # 60 chunks = 30 seconds at 2 Hz
 
@@ -102,49 +108,57 @@ def setup_logging():
     )
     logger = logging.getLogger(__name__)
 
-    # Autodetect Graylog host if not explicitly set: reuse the same
-    # mDNS record the MQTT transport uses to find the master. Master
-    # advertises _telemetryservice._tcp via advertise-service.sh, and
-    # Graylog runs on the same host at UDP 12201. Short timeout so a
-    # missing master doesn't stall process startup.
+    # Autodetect Graylog host if not explicitly set. RUNS ONCE PER PROCESS
+    # — setup_logging() is called from the audio callback and other hot
+    # paths, and doing a 2-second mDNS lookup on every call was blocking
+    # the PortAudio callback long enough to cause the very overflow it
+    # was trying to log. Cache the result at module scope so subsequent
+    # calls are a fast dict lookup.
+    global _CACHED_GRAYLOG_HOST, _GRAYLOG_LOGGED
     graylog_host = os.environ.get("GRAYLOG_HOST")
     if not graylog_host:
-        try:
-            from zeroconf import Zeroconf, ServiceBrowser
-            import socket as _sock
-            zc = Zeroconf()
-            found = {"host": None}
+        if _CACHED_GRAYLOG_HOST is _SENTINEL:
+            try:
+                from zeroconf import Zeroconf, ServiceBrowser
+                import socket as _sock
+                zc = Zeroconf()
+                found = {"host": None}
 
-            class _Listener:
-                def add_service(self, zc, type_, name):
-                    info = zc.get_service_info(type_, name, timeout=1500)
-                    if info and info.addresses:
-                        found["host"] = _sock.inet_ntoa(info.addresses[0])
-                def remove_service(self, *a, **k): pass
-                def update_service(self, *a, **k): pass
-            ServiceBrowser(zc, "_telemetryservice._tcp.local.", _Listener())
-            for _ in range(20):
-                if found["host"]: break
-                time.sleep(0.1)
-            zc.close()
-            if found["host"]:
-                graylog_host = found["host"]
-                logger.info(f"Graylog host auto-discovered: {graylog_host}")
-        except Exception as e:
-            logger.debug(f"Graylog auto-discovery skipped: {e}")
+                class _Listener:
+                    def add_service(self, zc, type_, name):
+                        info = zc.get_service_info(type_, name, timeout=1500)
+                        if info and info.addresses:
+                            found["host"] = _sock.inet_ntoa(info.addresses[0])
+                    def remove_service(self, *a, **k): pass
+                    def update_service(self, *a, **k): pass
+                ServiceBrowser(zc, "_telemetryservice._tcp.local.", _Listener())
+                for _ in range(20):
+                    if found["host"]: break
+                    time.sleep(0.1)
+                zc.close()
+                _CACHED_GRAYLOG_HOST = found["host"]
+            except Exception:
+                _CACHED_GRAYLOG_HOST = None
+        graylog_host = _CACHED_GRAYLOG_HOST
+        if graylog_host and not _GRAYLOG_LOGGED:
+            logger.info(f"Graylog host auto-discovered: {graylog_host}")
+            _GRAYLOG_LOGGED = True
 
     if graylog_host:
         try:
             import graypy
             import socket
-            graylog_port = int(os.environ.get("GRAYLOG_PORT", "12201"))
-            node_name = os.environ.get("NODE_NAME") or socket.gethostname()
-
-            handler = graypy.GELFUDPHandler(graylog_host, graylog_port)
-            # Add node identifier to all log messages
-            handler.facility = f"bass-sentry-{node_name}"
-            logging.getLogger().addHandler(handler)
-            logger.info(f"Graylog logging enabled: {graylog_host}:{graylog_port}")
+            # Only add the Graylog handler once per process. Root logger
+            # already has one -> setup_logging was called earlier in the
+            # same process, don't stack duplicates.
+            root = logging.getLogger()
+            if not any(isinstance(h, graypy.GELFUDPHandler) for h in root.handlers):
+                graylog_port = int(os.environ.get("GRAYLOG_PORT", "12201"))
+                node_name = os.environ.get("NODE_NAME") or socket.gethostname()
+                handler = graypy.GELFUDPHandler(graylog_host, graylog_port)
+                handler.facility = f"bass-sentry-{node_name}"
+                root.addHandler(handler)
+                logger.info(f"Graylog logging enabled: {graylog_host}:{graylog_port}")
         except ImportError:
             logger.warning("graypy not installed, Graylog logging disabled")
         except Exception as e:
@@ -192,7 +206,13 @@ def callback(
     time_sync,
     overflow_counter=None,
 ):
-    logger = setup_logging()
+    # Never call setup_logging() inside this function — it runs on the
+    # PortAudio callback thread and any blocking work (mDNS lookup,
+    # handler-init, filesystem probes) delays the callback long enough
+    # to cause the very input_overflow this function was trying to log.
+    # Use the module-level logger directly; setup_logging has already
+    # run in main() before this callback ever fires.
+    logger = logging.getLogger(__name__)
 
     if status:
         status_flags = str(status).replace("CallbackFlags.", "") if status else "None"
