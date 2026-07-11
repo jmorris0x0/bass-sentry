@@ -25,9 +25,12 @@ from copy import deepcopy
 import numpy as np
 from scipy.signal import resample, butter, sosfilt, sosfilt_zi
 
-# Level at which a calibrated system will clip
-# The loudest sound you expect to measure
-REFERENCE_DBSPL = 120
+# dB offset applied to every dbfs_measurement output. Adjust to make
+# reported SPL match a trusted reference (phone SPL meter against
+# pink noise). 105 empirically matched the fleet's current gain-knob
+# positions against NIOSH SLM at 80 dB SPL. Purely a label offset;
+# does not change the ADC's physical clipping level.
+REFERENCE_DBSPL = 105
 
 logger = logging.getLogger(__name__)
 
