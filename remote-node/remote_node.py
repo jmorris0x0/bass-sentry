@@ -500,6 +500,32 @@ def main():
     )
     time_sync_manager.start()
 
+    # Wait until the OS wallclock is close to true time before letting the
+    # recorder capture initial_time. On a fresh boot the Pi's local clock
+    # can be minutes behind reality; systemd-timesyncd steps it forward
+    # asynchronously. If we capture initial_time during that window we
+    # bake a huge offset into every chunk timestamp for the rest of the
+    # process's life — invisible on dashboards but silently breaks
+    # cross-node correlation. Poll TimeSync's own view of the offset;
+    # proceed once it's under 500 ms or 60 s have elapsed (fail-open so
+    # we don't refuse to start if NTP is unreachable at the venue).
+    logger.info("Waiting for clock to converge to NTP...")
+    wait_start = time.monotonic()
+    while True:
+        offset = abs(time_sync_manager.get_offset())
+        if offset < 0.5:
+            logger.info(f"Clock converged: offset={offset*1000:.0f}ms")
+            break
+        elapsed = time.monotonic() - wait_start
+        if elapsed > 60:
+            logger.warning(
+                f"NTP wait timed out after {elapsed:.0f}s; proceeding with "
+                f"current offset={offset*1000:.0f}ms — timestamps may be off"
+            )
+            break
+        logger.info(f"Clock offset {offset*1000:.0f}ms > 500ms, waiting...")
+        time.sleep(2)
+
     # Use bounded queue to prevent memory exhaustion
     data_queue = multiprocessing.Queue(maxsize=MAX_QUEUE_SIZE)
     sample_counter = multiprocessing.Value("i", 0)
