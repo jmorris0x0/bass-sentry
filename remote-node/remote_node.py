@@ -25,19 +25,24 @@ from telemetry_sender import TelemetrySender
 
 
 def get_input_device():
+    # PortAudio caches its device list at first init. If the USB audio
+    # device enumerated AFTER python startup (recorder was patiently
+    # waiting for it), sd.query_devices() will keep returning the stale
+    # "no devices" view forever. Terminate+reinitialize forces a rescan.
+    try:
+        sd._terminate()
+        sd._initialize()
+    except Exception:
+        pass
+
     devices = sd.query_devices()
-    # logger.info("Found audio devices:\n{}".format(devices))
 
     if platform.system() == "Linux":  # Assume Raspberry Pi
         for i, d in enumerate(devices):
-            # logger.debug(f"Device {i}: {d['name']}")
             if "USB Audio CODEC" in d["name"]:
-                # logger.debug(f"Found USB Audio CODEC at device {i}.")
                 return d
-        # logger.debug("USB Audio CODEC not found. Using default input device.")
         return sd.query_devices(kind="input")  # Use the default device
     else:  # Use the default device
-        # logger.debug("Not on Linux, using default input device.")
         return sd.query_devices(kind="input")
 
 

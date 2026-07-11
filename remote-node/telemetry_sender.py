@@ -171,6 +171,11 @@ class TransportHandler:
         self.messages_buffered = 0
         self.heartbeats_sent = 0
 
+        # Audio-health tracking: recorder-derived messages update this.
+        # None until first audio arrives; heartbeats compare against
+        # wall clock to report "audio_ok".
+        self.last_audio_message_time = None
+
     def start(self):
         """Start transport connection."""
         self._running = True
@@ -233,16 +238,29 @@ class TransportHandler:
     def _heartbeat_loop(self):
         """Send periodic heartbeats with node statistics."""
         while self._running:
+            now = time.time()
+            # Consider audio "active" if any recorder-derived message has
+            # arrived in the last 2 * heartbeat_interval seconds. That
+            # gives us headroom for a slow chunk without false alarms,
+            # but flags a stalled USB / silent recorder promptly.
+            if self.last_audio_message_time is None:
+                audio_active = False
+                audio_age = None
+            else:
+                audio_age = now - self.last_audio_message_time
+                audio_active = audio_age < (self.heartbeat_interval * 2)
             heartbeat = {
                 "type": "heartbeat",
                 "node_name": self.unit_name,
-                "timestamp": time.time(),
+                "timestamp": now,
                 "status": "connected" if self.is_connected else "disconnected",
                 "stats": {
                     "messages_sent": self.messages_sent,
                     "messages_failed": self.messages_failed,
                     "buffer_size": len(self.offline_buffer),
                     "heartbeats_sent": self.heartbeats_sent,
+                    "audio_active": audio_active,
+                    "audio_last_seen_ago_s": round(audio_age, 1) if audio_age is not None else None,
                 },
             }
             self.publish_message(heartbeat)
@@ -394,6 +412,10 @@ class TelemetrySender:
 
     def send_data(self, data):
         logger.debug(f"Sending data: {data}")
+        # Mark recorder-audio as active for the health metric in heartbeats.
+        # send_data() is called from the sender subprocess only when the
+        # recorder produced a chunk; heartbeats never route through here.
+        self.handler.last_audio_message_time = time.time()
         self.handler.publish_message(data)
 
     def stop(self):
