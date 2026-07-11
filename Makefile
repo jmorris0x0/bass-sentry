@@ -11,7 +11,9 @@ help: ## Show this help
 
 run: ## Start all services (builds if needed)
 	docker compose up -d --build
-	./advertise-service.sh &
+	@pkill -f advertise-service.sh 2>/dev/null || true
+	@sleep 1
+	@nohup ./advertise-service.sh >/tmp/bass-advertise.log 2>&1 &
 	@echo "\n✓ Bass Sentry running and advertised on network"
 
 stop: ## Stop all services
