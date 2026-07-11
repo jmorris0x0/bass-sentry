@@ -261,6 +261,11 @@ class TransportHandler:
                     "heartbeats_sent": self.heartbeats_sent,
                     "audio_active": audio_active,
                     "audio_last_seen_ago_s": round(audio_age, 1) if audio_age is not None else None,
+                    "input_overflows": (
+                        self.overflow_counter.value
+                        if getattr(self, "overflow_counter", None) is not None
+                        else 0
+                    ),
                 },
             }
             self.publish_message(heartbeat)

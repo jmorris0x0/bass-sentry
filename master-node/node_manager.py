@@ -324,6 +324,11 @@ class DataManager:
             point.field("messages_failed", stats.get("messages_failed", 0))
             point.field("buffer_size", stats.get("buffer_size", 0))
             point.field("heartbeats_sent", stats.get("heartbeats_sent", 0))
+            point.field("input_overflows", int(stats.get("input_overflows", 0) or 0))
+            point.field("audio_active", 1 if stats.get("audio_active") else 0)
+            audio_age = stats.get("audio_last_seen_ago_s")
+            if audio_age is not None:
+                point.field("audio_last_seen_ago_s", float(audio_age))
             point.field("online", 1)  # Indicator that node is online
 
             # Use heartbeat timestamp if available, otherwise current time

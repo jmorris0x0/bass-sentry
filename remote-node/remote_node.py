@@ -190,14 +190,19 @@ def callback(
     ns_between_messages,
     sample_counter,
     time_sync,
+    overflow_counter=None,
 ):
     logger = setup_logging()
 
     if status:
         status_flags = str(status).replace("CallbackFlags.", "") if status else "None"
         logger.warning(f"Status flags: {status_flags}")
-        # Check if status.input_overflow is set
         if status.input_overflow:
+            # Count overflows in shared memory so the sender subprocess
+            # can report the total in each heartbeat.
+            if overflow_counter is not None:
+                with overflow_counter.get_lock():
+                    overflow_counter.value += 1
             logger.warning(
                 "Input overflow - buffer may be too small or system too slow, data may be lost!"
             )
@@ -227,7 +232,7 @@ def callback(
     sample_counter.value += 1
 
 
-def recorder(data_queue, sample_counter, time_sync_manager):
+def recorder(data_queue, sample_counter, time_sync_manager, overflow_counter=None):
     logger = setup_logging()
 
     # Get initial offset from time sync
@@ -242,6 +247,7 @@ def recorder(data_queue, sample_counter, time_sync_manager):
         ns_between_messages=ns_between_messages,
         sample_counter=sample_counter,
         time_sync=time_sync_manager,
+        overflow_counter=overflow_counter,
     )
 
     # Watchdog: track when a callback last fired so we can detect a silently-dead
@@ -336,7 +342,7 @@ def recorder(data_queue, sample_counter, time_sync_manager):
         return
 
 
-def sender(data_queue, config):
+def sender(data_queue, config, overflow_counter=None):
     logger = setup_logging()
 
     # Extract transport configuration (if provided)
@@ -355,6 +361,8 @@ def sender(data_queue, config):
             telemetry = TelemetrySender(
                 topic_suffix="remote_node", transport_config=transport_config
             )
+            # Expose shared overflow counter to heartbeat.
+            telemetry.handler.overflow_counter = overflow_counter
             break
         except Exception as e:
             logger.warning(
@@ -475,14 +483,15 @@ def main():
     # Use bounded queue to prevent memory exhaustion
     data_queue = multiprocessing.Queue(maxsize=MAX_QUEUE_SIZE)
     sample_counter = multiprocessing.Value("i", 0)
+    overflow_counter = multiprocessing.Value("i", 0)
 
     # Initialize processes with daemon=True
     recorder_process = multiprocessing.Process(
-        target=recorder, args=(data_queue, sample_counter, time_sync_manager)
+        target=recorder, args=(data_queue, sample_counter, time_sync_manager, overflow_counter)
     )
     recorder_process.daemon = True  # Ensures it will close with main process
 
-    sender_process = multiprocessing.Process(target=sender, args=(data_queue, config))
+    sender_process = multiprocessing.Process(target=sender, args=(data_queue, config, overflow_counter))
     sender_process.daemon = True  # Ensures it will close with main process
 
     # Start both processes
