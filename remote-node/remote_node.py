@@ -265,6 +265,11 @@ def recorder(data_queue, sample_counter, time_sync_manager):
             dtype=FORMAT,
             samplerate=int(info["default_samplerate"]),
             blocksize=CHUNK,
+            # Ask PortAudio for its high-latency preset so ALSA buffers
+            # more samples internally. Reduces overflow warnings on the
+            # Pi 4B at the cost of ~50-100ms extra measurement latency,
+            # which doesn't matter for this application.
+            latency='high',
             finished_callback=lambda: logger.info("Stream finished"),
         )
 
