@@ -28,9 +28,14 @@ from scipy.signal import resample, butter, sosfilt, sosfilt_zi
 # dB offset applied to every dbfs_measurement output. Adjust to make
 # reported SPL match a trusted reference (phone SPL meter against
 # pink noise). 105 empirically matched the fleet's current gain-knob
-# positions against NIOSH SLM at 80 dB SPL. Purely a label offset;
-# does not change the ADC's physical clipping level.
-REFERENCE_DBSPL = 105
+# positions against NIOSH SLM at 80 dB SPL, but historical 6am ambient
+# comparison to two-year-old screenshots showed all nodes reading
+# ~4 dB lower than they should relative to last year's calibration
+# (which was the reference for the 105 dB neighbor-complaint threshold
+# used in the DJ Booth dashboard). Bumped to 109 so those thresholds
+# stay meaningful this year. Purely a label offset; does not change
+# the ADC's physical clipping level.
+REFERENCE_DBSPL = 109
 
 logger = logging.getLogger(__name__)
 
